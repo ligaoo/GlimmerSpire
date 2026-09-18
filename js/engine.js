@@ -1077,7 +1077,9 @@
         run.player.gold += r.amount;
         r.taken = true;
       } else if (r.type === 'potion') {
-        if (this.gainPotion(run, r.id)) r.taken = true;
+        // 药水栏满时 gainPotion 内部转为 15 金币;无论成败都标记已领取,防止反复领取
+        this.gainPotion(run, r.id);
+        r.taken = true;
       } else if (r.type === 'relic') {
         this.acquireRelic(run, r.id);
         r.taken = true;

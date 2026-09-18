@@ -367,6 +367,22 @@ function mechanicTests() {
     const otherA = c.enemies[1].hp;
     assert(otherB - otherA >= c.enemies[0].maxHp || c.enemies[1].dead, `尸爆未造成伤害: ${otherB - otherA}`);
   }
+  // --- 药水奖励重复领取回归 ---
+  {
+    const run = Engine.newRun('warrior', 200);
+    // 灌满药水栏
+    run.player.potions = ['healpotion', 'healpotion', 'healpotion'];
+    run.rewards = [{ type: 'potion', id: 'firepotion' }];
+    const gold0 = run.player.gold;
+    Engine.claimReward(run, 0);
+    const gold1 = run.player.gold;
+    Engine.claimReward(run, 0); // 第二次点击应无效
+    Engine.claimReward(run, 0);
+    const gold2 = run.player.gold;
+    assert(run.rewards[0].taken === true, '药水奖励未标记已领取');
+    assert(gold1 - gold0 === 15, `满药水时应一次性转15金币,实际 ${gold1 - gold0}`);
+    assert(gold2 === gold1, `奖励被重复领取: ${gold1} -> ${gold2}`);
+  }
   // --- v2 联动机制测试 ---
   // 全身撞击:伤害=当前格挡
   {
