@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微光尖塔 · Glimmer Spire</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="bg-stars"></canvas>
+<div id="app">
+  <!-- 顶部 HUD(局内) -->
+  <header id="hud" class="hidden">
+    <div class="hud-left">
+      <div id="hp-orb" class="hp-orb">
+        <div class="hp-fill"></div>
+        <div class="hp-text"></div>
+      </div>
+      <div class="hud-gold" id="hud-gold">🪙 0</div>
+      <div class="hud-floor" id="hud-floor"></div>
+    </div>
+    <div class="hud-center" id="hud-title">微光尖塔</div>
+    <div class="hud-right">
+      <div id="hud-potions" class="hud-potions"></div>
+      <div id="hud-relics" class="hud-relics"></div>
+      <div class="hud-btns">
+        <button id="btn-deck" class="icon-btn" title="查看卡组">🂠</button>
+        <button id="btn-help" class="icon-btn" title="帮助">❔</button>
+        <button id="btn-mute" class="icon-btn" title="音效开关">🔊</button>
+        <button id="btn-menu" class="icon-btn" title="返回主菜单">🏠</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="screen"></main>
+
+  <!-- 战斗手牌层 -->
+  <div id="combat-bottom" class="hidden">
+    <div id="player-anchor">
+      <div class="player-avatar" id="player-avatar"></div>
+      <div class="player-block" id="player-block"></div>
+      <div class="player-status" id="player-status"></div>
+    </div>
+    <div id="hand-area">
+      <div id="pile-draw" class="pile-btn" title="抽牌堆"></div>
+      <div id="hand"></div>
+      <div id="pile-discard" class="pile-btn" title="弃牌堆"></div>
+    </div>
+    <div id="energy-area">
+      <div id="energy-orb"><span id="energy-text">3/3</span></div>
+      <button id="btn-endturn">结束回合</button>
+    </div>
+  </div>
+</div>
+
+<div id="float-layer"></div>
+<div id="vignette"></div>
+<div id="modal-layer" class="hidden"></div>
+<div id="tooltip" class="hidden"></div>
+<div id="toast" class="hidden"></div>
+
+<script src="js/rng.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/relics.js"></script>
+<script src="js/potions.js"></script>
+<script src="js/events.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
