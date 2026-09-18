@@ -17,6 +17,7 @@ require('../js/relics.js');
 require('../js/potions.js');
 require('../js/events.js');
 require('../js/packs.js');
+require('../js/themes.js');
 require('../js/engine.js');
 
 const { Engine, RNG, CARDS } = globalThis.GS;
@@ -588,6 +589,433 @@ function mechanicTests() {
       assert(withPoisonDmg >= noPoisonDmg * 1.8, `蛇击未翻倍: ${noPoisonDmg} vs ${withPoisonDmg}`);
     }
   }
+  // ==================== 联动主题机制测试 ====================
+  // 鬼:打出牌时触发
+  {
+    const run = Engine.newThemeRun('mystery', 9001);
+    run.player.deck = [{ id: 'mn_ghostking', up: 0 }, { id: 'strike', up: 0 }, { id: 'strike', up: 0 }, { id: 'strike', up: 0 }, { id: 'strike', up: 0 }, { id: 'strike', up: 0 }];
+    forceCombat(run, ['mn_paperman'], 'normal');
+    const c = run.combat;
+    const gi = c.hand.findIndex(h => h.id === 'mn_ghostking');
+    assert(gi >= 0, '鬼王未进入手牌');
+    Engine.playCard(run, gi, 0);
+    assert(c.player.ghostName === '鬼·鬼王', '鬼未附身: ' + c.player.ghostName);
+    const e = c.enemies[0];
+    const hpB = e.hp;
+    const si = c.hand.findIndex(h => h.id === 'strike');
+    if (si >= 0 && Engine.canPlay(run, si)) {
+      Engine.playCard(run, si, 0);
+      // 打击 6 + 鬼王 5 = 至少 11
+      assert(hpB - e.hp >= 11, `鬼王未触发: ${hpB - e.hp}`);
+    }
+  }
+  // 魂火:累积与消耗
+  {
+    const run = Engine.newThemeRun('mystery', 9002);
+    run.player.deck = [{ id: 'mn_soulfire', up: 0 }, { id: 'mn_candle', up: 0 }, { id: 'strike', up: 0 }];
+    forceCombat(run, ['mn_paperman'], 'normal');
+    const c = run.combat;
+    const fi = c.hand.findIndex(h => h.id === 'mn_soulfire');
+    if (fi >= 0) Engine.playCard(run, fi, 0);
+    assert((c.player.statuses.soulfire || 0) >= 2, '魂火未累积: ' + c.player.statuses.soulfire);
+    const ci = c.hand.findIndex(h => h.id === 'mn_candle');
+    if (ci >= 0 && Engine.canPlay(run, ci)) {
+      const hpB = c.enemies[0].hp;
+      Engine.playCard(run, ci, 0);
+      assert((c.player.statuses.soulfire || 0) === 0, '魂火未被消耗: ' + c.player.statuses.soulfire);
+      assert(hpB - c.enemies[0].hp >= 10, `魂火焚身伤害不足: ${hpB - c.enemies[0].hp}`);
+    }
+  }
+  // 阴阳眼:累积到上限触发开眼
+  {
+    const run = Engine.newThemeRun('mystery', 9003);
+    run.player.deck = [{ id: 'mn_carrycoffin', up: 0 }, { id: 'mn_carrycoffin', up: 0 }, { id: 'mn_carrycoffin', up: 0 }, { id: 'mn_carrycoffin', up: 0 }, { id: 'mn_carrycoffin', up: 0 }, { id: 'mn_carrycoffin', up: 0 }];
+    run.player.maxHp = 400; run.player.hp = 400;
+    forceCombat(run, ['mn_ghostface'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999;
+    let played = 0;
+    for (let i = 0; i < 10 && run.screen === 'combat'; i++) {
+      const k = c.hand.findIndex((h, j) => h.id === 'mn_carrycoffin' && Engine.canPlay(run, j));
+      if (k >= 0) { Engine.playCard(run, k, 0); played++; continue; }
+      Engine.endTurn(run);
+    }
+    assert(played > 0, '背棺人未打出');
+    // 开眼后层数被消耗,并留下了力量
+    assert((c.player.statuses.eye || 0) < 10, '开眼未消耗层数: ' + c.player.statuses.eye);
+    assert((c.player.statuses.str || 0) > 0, '开眼未获得力量');
+  }
+  // 领域:积满反噬
+  {
+    const run = Engine.newThemeRun('jjk', 9004);
+    run.player.deck = [{ id: 'jj_blue', up: 0 }, { id: 'jj_blue', up: 0 }, { id: 'jj_blue', up: 0 }];
+    forceCombat(run, ['jj_grade4'], 'normal');
+    const c = run.combat;
+    assert(c.field && c.field.max > 0, '领域未初始化');
+    c.field.val = c.field.max - 1;
+    const hpB = run.player.hp;
+    Engine.endTurn(run);
+    assert(run.player.hp < hpB || run.screen !== 'combat', '领域反噬未生效');
+    if (run.screen === 'combat') assert(c.field.val === 0, '领域未重置: ' + c.field.val);
+  }
+  // 咒力:累积、上限与消耗
+  {
+    const run = Engine.newThemeRun('jjk', 9005);
+    run.player.deck = [{ id: 'jj_ce', up: 0 }, { id: 'jj_purple', up: 0 }, { id: 'jj_dismantle', up: 0 }, { id: 'jj_dismantle', up: 0 }];
+    forceCombat(run, ['jj_specialgrade'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    const ci = c.hand.findIndex(h => h.id === 'jj_ce');
+    if (ci >= 0) Engine.playCard(run, ci, 0);
+    assert((c.ce || 0) >= 2, '咒力未累积: ' + c.ce);
+    // 六眼 -25 抵消基础黑闪几率,让伤害可精确断言
+    c.player.statuses.sixEyes = 0;
+    const pi = c.hand.findIndex(h => h.id === 'jj_purple');
+    if (pi >= 0 && Engine.canPlay(run, pi)) {
+      const ceB = c.ce;
+      const hpB = c.enemies[0].hp;
+      Engine.playCard(run, pi, 0);
+      assert(c.ce < ceB, `茈未消耗咒力: ${ceB} -> ${c.ce}`);
+      // 茈:基础 34 + 每点咒力 ×3
+      assert(hpB - c.enemies[0].hp >= 34 + ceB * 3 - 1, `茈伤害未按咒力加成: ${hpB - c.enemies[0].hp}(咒力 ${ceB})`);
+    }
+  }
+  // 黑闪:六眼拉满后必定暴击,伤害翻倍并获得咒力
+  {
+    const run = Engine.newThemeRun('jjk', 9015);
+    run.player.deck = [{ id: 'jj_dismantle', up: 0 }];
+    forceCombat(run, ['jj_specialgrade'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    c.player.statuses.sixEyes = 200; // 必定黑闪
+    const i = c.hand.findIndex(h => h.id === 'jj_dismantle');
+    const hpB = c.enemies[0].hp;
+    Engine.playCard(run, i, 0);
+    // 解:8 + 咒力(0)= 8,黑闪翻倍 ≥16
+    assert(hpB - c.enemies[0].hp >= 15, `黑闪未翻倍: ${hpB - c.enemies[0].hp}`);
+    assert((c.ce || 0) >= 3, '黑闪未积攒咒力: ' + c.ce);
+  }
+  // 咒术:每回合第一张免费
+  {
+    const run = Engine.newThemeRun('jjk', 9006);
+    run.player.deck = [{ id: 'jj_dismantle', up: 0 }, { id: 'jj_dismantle', up: 0 }, { id: 'jj_dismantle', up: 0 }, { id: 'jj_dismantle', up: 0 }, { id: 'jj_dismantle', up: 0 }];
+    forceCombat(run, ['jj_grade4'], 'normal');
+    const c = run.combat;
+    const i1 = c.hand.findIndex(h => h.id === 'jj_dismantle');
+    assert(i1 >= 0 && Engine.cardCost(run, c.hand[i1]) === 0, '首张咒术未免费');
+    Engine.playCard(run, i1, 0);
+    const i2 = c.hand.findIndex(h => h.id === 'jj_dismantle');
+    if (i2 >= 0) assert(Engine.cardCost(run, c.hand[i2]) === 1, '第二张咒术费用错误: ' + Engine.cardCost(run, c.hand[i2]));
+  }
+  // 领域屏障:抵挡一次伤害
+  {
+    const run = Engine.newThemeRun('jjk', 9007);
+    run.player.deck = [{ id: 'jj_strike', up: 0 }];
+    forceCombat(run, ['jj_grade4'], 'normal');
+    const c = run.combat;
+    c.player.statuses.barrier = 1;
+    c.player.block = 0;
+    c.enemies[0].move = 'bite';
+    const hpB = run.player.hp;
+    Engine.endTurn(run);
+    assert(run.player.hp >= hpB - 1, `领域屏障未抵挡伤害: ${hpB} -> ${run.player.hp}`);
+    assert((c.player.statuses.barrier || 0) === 0, '领域屏障未被消耗');
+  }
+  // 封锁:敌人下回合无法行动
+  {
+    const run = Engine.newThemeRun('jjk', 9008);
+    run.player.deck = [{ id: 'jj_seal', up: 0 }, { id: 'jj_strike', up: 0 }];
+    forceCombat(run, ['jj_grade4'], 'normal');
+    const c = run.combat;
+    const si = c.hand.findIndex(h => h.id === 'jj_seal');
+    if (si >= 0) Engine.playCard(run, si, 0);
+    assert((c.enemies[0].statuses.sealAction || 0) > 0, '封锁未施加');
+    c.enemies[0].move = 'bite';
+    const hpB = run.player.hp;
+    c.player.block = 0;
+    Engine.endTurn(run);
+    if (run.screen === 'combat') assert(run.player.hp === hpB || (c.enemies[0].dead), `封锁未阻止行动: ${hpB} -> ${run.player.hp}`);
+  }
+  // 主题:污染与镜域节点
+  {
+    const run = Engine.newThemeRun('mystery', 9009);
+    assert(run.map.length >= 10, '镜域地图行数异常: ' + run.map.length);
+    const types = new Set();
+    run.map.forEach(row => row.forEach(n => types.add(n.type)));
+    assert(types.has('boss'), '镜域缺少 BOSS 节点');
+    const curseRow = run.map.findIndex(row => row.some(n => n.type === 'curse'));
+    const wardRow = run.map.findIndex(row => row.some(n => n.type === 'ward'));
+    assert(curseRow >= 0, '镜域缺少咒物祭坛');
+    assert(wardRow >= 0, '镜域缺少镇魂结界');
+  }
+  // 主题:专属遗物池不混入其他主题的遗物
+  {
+    const run = Engine.newThemeRun('jjk', 9010);
+    const theme = GS.THEMES.get('jjk');
+    assert(theme.relics.every(id => GS.RELICS.get(id)), '主题遗物未注册');
+    // 反复获取遗物后,不允许出现其它主题的遗物
+    for (let i = 0; i < 30; i++) {
+      run.player.gold = 0;
+      const pickId = theme.relics[i % theme.relics.length];
+      if (!run.player.relics.includes(pickId)) Engine.acquireRelic(run, pickId);
+    }
+    const wrong = run.player.relics.filter(id => {
+      const d = GS.RELICS.get(id);
+      return d && d.theme && d.theme !== 'jjk';
+    });
+    assert(wrong.length === 0, '出现了其它主题的遗物: ' + wrong.join(','));
+    const myst = GS.RELICS.get('mystbell');
+    assert(myst && myst.theme === 'mystery', '镇魂铃主题标记错误');
+  }
+  // ==================== 联动主题二批机制测试 ====================
+  // Re:Zero:精灵缔约 + 技能牌触发
+  {
+    const run = Engine.newThemeRun('rezero', 9101);
+    run.player.deck = [{ id: 'rz_sp_shield', up: 0 }, { id: 'rz_contract', up: 0 }, { id: 'rz_defend', up: 0 }, { id: 'strike', up: 0 }];
+    forceCombat(run, ['rz_dog'], 'normal');
+    const c = run.combat;
+    // 直接附身「库」,验证技能牌触发、攻击牌不触发
+    c.player.ghostKey = 'rz_sp_shield';
+    c.player.ghostName = '库';
+    c.player.statuses.ghostPower = 5;
+    const di = c.hand.findIndex(h => h.id === 'rz_defend');
+    assert(di >= 0, '护魂未进入手牌');
+    const b0 = c.player.block;
+    Engine.playCard(run, di, 0);
+    assert(c.player.block >= b0 + 10, `精灵·库未触发(应 5 格挡+卡牌 5 格挡): ${b0} -> ${c.player.block}`);
+    const si = c.hand.findIndex(h => h.id === 'strike');
+    if (si >= 0 && Engine.canPlay(run, si)) {
+      const b1 = c.player.block;
+      Engine.playCard(run, si, 0);
+      assert(c.player.block === b1, '精灵不应被攻击牌触发');
+    }
+  }
+  // Re:Zero:死亡回归倒回存档点
+  {
+    const run = Engine.newThemeRun('rezero', 9102);
+    run.player.deck = [{ id: 'strike', up: 0 }];
+    forceCombat(run, ['rz_dog'], 'normal');
+    const c = run.combat;
+    assert(c.rbdHp !== undefined, '死亡回归存档点未初始化');
+    c.enemies[0].move = 'bite';
+    c.player.block = 0;
+    run.player.hp = 3;
+    Engine.endTurn(run);
+    if (run.screen === 'combat') {
+      assert(run.player.hp === c.rbdHp, `死亡回归未倒回: hp=${run.player.hp}, 存档点=${c.rbdHp}`);
+      assert(c.rbdUsed === 1, '死亡回归次数未消耗');
+      // 第二次致命伤应真正死亡(基础只有 1 次)
+      if (run.screen === 'combat') {
+        c.enemies[0].move = 'bite';
+        c.player.block = 0;
+        run.player.hp = 3;
+        Engine.endTurn(run);
+        assert(run.screen === 'gameover', '第二次致命伤应当死亡');
+      }
+    }
+  }
+  // 奥特曼:光能消耗、红色警戒、枯竭伤害
+  {
+    const run = Engine.newThemeRun('ultraman', 9103);
+    run.player.deck = [{ id: 'ul_charge', up: 0 }];
+    forceCombat(run, ['ul_bemstar'], 'normal');
+    const c = run.combat;
+    assert(c.light && c.light.val === 10 && c.light.max === 12, `光能未初始化: ${JSON.stringify(c.light)}`);
+    const ci = c.hand.findIndex(h => h.id === 'ul_charge');
+    if (ci >= 0) Engine.playCard(run, ci, 0);
+    assert(c.light.val === 12, `充能应封顶于上限: ${c.light.val}`);
+    c.light.val = 6;
+    Engine.endTurn(run);
+    if (run.screen === 'combat') assert(c.light.val === 5, `光能未随回合消耗: ${c.light.val}`);
+    // 红色警戒:光能 ≤3 时攻击提升
+    c.light.val = 3;
+    const atkLow = Engine.calcCardDamage(run, { id: 'ul_strike', up: 0, uid: -1 }, null);
+    c.light.val = 10;
+    const atkHigh = Engine.calcCardDamage(run, { id: 'ul_strike', up: 0, uid: -1 }, null);
+    assert(atkLow > atkHigh, `红色警戒未提升攻击: 低光能 ${atkLow} vs 高光能 ${atkHigh}`);
+    // 枯竭:光能 1 时结束回合 -> 归零并当场受伤
+    c.light.val = 1;
+    const hpB = run.player.hp;
+    Engine.endTurn(run);
+    if (run.screen === 'combat') {
+      assert(c.light.val === 0, '光能未归零');
+      assert(run.player.hp < hpB, '能量枯竭未造成伤害');
+      const hpB2 = run.player.hp;
+      Engine.endTurn(run);
+      assert(run.player.hp < hpB2 || run.screen !== 'combat', '能量枯竭未持续造成伤害');
+    }
+  }
+  // 奥特曼:斯派修姆光线消耗光能增伤
+  {
+    const run = Engine.newThemeRun('ultraman', 9104);
+    run.player.deck = [{ id: 'ul_specium', up: 0 }];
+    forceCombat(run, ['ul_zetton'], 'boss');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    c.light.val = 5;
+    const i = c.hand.findIndex(h => h.id === 'ul_specium');
+    assert(i >= 0, '斯派修姆光线未进入手牌');
+    const hpB = c.enemies[0].hp;
+    Engine.playCard(run, i, 0);
+    // 基础 8 + 3 点光能 ×3 = 17
+    assert(hpB - c.enemies[0].hp >= 17, `光线未按光能增伤: ${hpB - c.enemies[0].hp}`);
+    assert(c.light.val === 2, `光能未扣除: ${c.light.val}`);
+  }
+  // 西游记:棍势积攒与千钧重棍爆发
+  {
+    const run = Engine.newThemeRun('journey', 9105);
+    run.player.deck = [{ id: 'xy_heavy', up: 0 }, { id: 'xy_smash', up: 0 }];
+    forceCombat(run, ['xy_imp'], 'normal');
+    const c = run.combat;
+    assert((c.player.statuses.cudgel || 0) === 3, `初始棍势错误: ${c.player.statuses.cudgel}`);
+    const hi = c.hand.findIndex(h => h.id === 'xy_heavy');
+    if (hi >= 0) Engine.playCard(run, hi, 0);
+    assert((c.player.statuses.cudgel || 0) === 4, `重劈未获得棍势: ${c.player.statuses.cudgel}`);
+    const si = c.hand.findIndex(h => h.id === 'xy_smash');
+    if (si >= 0 && Engine.canPlay(run, si)) {
+      c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+      const hpB = c.enemies[0].hp;
+      Engine.playCard(run, si, 0);
+      // 基础 6 + 4 层棍势 ×7 = 34
+      assert(hpB - c.enemies[0].hp >= 34, `千钧重棍未按棍势爆发: ${hpB - c.enemies[0].hp}`);
+      assert((c.player.statuses.cudgel || 0) === 0, '重棍未消耗棍势');
+    }
+  }
+  // 妖精的尾巴:羁绊计数与灭龙奥义·咆哮增伤
+  {
+    const run = Engine.newThemeRun('fairytail', 9106);
+    run.player.deck = [{ id: 'ft_strike', up: 0 }, { id: 'ft_strike', up: 0 }, { id: 'ft_strike', up: 0 }, { id: 'ft_bit', up: 0 }];
+    forceCombat(run, ['ft_vulcan'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    // 打 3 张攻击,羁绊应为 3
+    for (let k = 0; k < 3; k++) {
+      const i = c.hand.findIndex(h => h.id === 'ft_strike');
+      if (i >= 0 && Engine.canPlay(run, i)) Engine.playCard(run, i, 0);
+    }
+    assert((c.combatCards || 0) >= 3, `羁绊计数异常: ${c.combatCards}`);
+    const bi = c.hand.findIndex(h => h.id === 'ft_bit');
+    if (bi >= 0 && Engine.canPlay(run, bi)) {
+      const hpB = c.enemies[0].hp;
+      Engine.playCard(run, bi, 0);
+      // 基础 8 + 羁绊 ≥3 = 至少 11
+      assert(hpB - c.enemies[0].hp >= 11, `咆哮未按羁绊增伤: ${hpB - c.enemies[0].hp}`);
+    }
+  }
+  // 妖精的尾巴:龙之意志攻击增幅
+  {
+    const run = Engine.newThemeRun('fairytail', 9107);
+    run.player.deck = [{ id: 'ft_strike', up: 0 }];
+    forceCombat(run, ['ft_vulcan'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    const inst = { id: 'ft_strike', up: 0, uid: -2 };
+    delete c.player.statuses.dragonforce; // 初始遗物自带 2 层,先清零测基线
+    const d0 = Engine.calcCardDamage(run, inst, null);
+    c.player.statuses.dragonforce = 2;
+    const d1 = Engine.calcCardDamage(run, inst, null);
+    assert(d1 === Math.floor(d0 * 1.3), `龙之意志增幅错误: ${d0} -> ${d1}`);
+  }
+  // 主题二批:全部主题的内容注册完整性
+  {
+    for (const t of GS.THEMES.all) {
+      const cards = [...t.pool, ...t.basic, ...(t.tokens || []), ...t.starterDeck];
+      assert(cards.every(id => CARDS.get(id)), `[${t.id}] 存在未注册卡牌`);
+      assert(t.relics.every(id => GS.RELICS.get(id)), `[${t.id}] 存在未注册遗物`);
+      assert((t.enemyIds || []).every(id => GS.ENEMIES.defs[id]), `[${t.id}] 存在未注册敌人`);
+      const enc = new Set();
+      t.acts.forEach(a => { a.normal.flat().concat(a.elite.flat()).concat(a.boss.flat()).forEach(id => enc.add(id)); });
+      assert([...enc].every(id => GS.ENEMIES.defs[id]), `[${t.id}] 遭遇表引用了未注册敌人`);
+      // 伙伴:定义完整、可查询
+      assert((t.allyDefs || []).length >= 4, `[${t.id}] 伙伴不足 4 名`);
+      for (const a of (t.allyDefs || [])) {
+        assert(GS.THEMES.allyMap[a.id] === a, `[${t.id}] 伙伴 ${a.id} 未注册`);
+        assert(a.cost > 0 && a.desc, `[${t.id}] 伙伴 ${a.id} 定义不完整`);
+      }
+    }
+  }
+  // 伙伴:商店槽位与购买
+  {
+    const run = Engine.newThemeRun('rezero', 9201);
+    run.player.gold = 999;
+    run.shop = Engine._testGenShop(run);
+    const shop = run.shop;
+    assert(shop.allies && shop.allies.length === 1, '主题商店未生成伙伴槽位');
+    const ok = Engine.buyShopItem(run, 'ally', 0);
+    assert(ok && run.player.allies.length === 1, '伙伴购买失败');
+    const goldB = run.player.gold;
+    // 伙伴已买断,再次购买应失败
+    assert(!Engine.buyShopItem(run, 'ally', 0), '已售出的伙伴仍可购买');
+    assert(run.player.gold === goldB, '失败购买不应扣钱');
+    // 经典模式商店不应有伙伴
+    const classic = Engine.newRun('warrior', 9202);
+    const cShop = Engine._testGenShop(classic);
+    assert(!cShop.allies || cShop.allies.length === 0, '经典商店不应出现伙伴');
+  }
+  // 伙伴:回合效果(蕾姆每回合随机打 4)
+  {
+    const run = Engine.newThemeRun('rezero', 9203);
+    run.player.allies = ['rz_a_rem'];
+    run.player.deck = [{ id: 'strike', up: 0 }];
+    forceCombat(run, ['rz_dog'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999;
+    const hpB = c.enemies[0].hp;
+    Engine.endTurn(run);
+    assert(c.enemies[0].dead || hpB - c.enemies[0].hp >= 4, `蕾姆的回合效果未生效: ${hpB} -> ${c.enemies[0].hp}`);
+  }
+  // 伙伴:战斗开始效果(碧翠丝缔结精灵)
+  {
+    const run = Engine.newThemeRun('rezero', 9204);
+    run.player.allies = ['rz_a_beatrice'];
+    run.player.deck = [{ id: 'strike', up: 0 }];
+    forceCombat(run, ['rz_dog'], 'normal');
+    const c = run.combat;
+    assert(c.player.ghostName && (c.player.ghostKey || '').startsWith('rz_sp'), `碧翠丝未缔结精灵: ${c.player.ghostName}`);
+  }
+  // 伙伴:胜利效果(张伟给金币) + 上限 4 名
+  {
+    const run = Engine.newThemeRun('mystery', 9205);
+    run.player.allies = ['mn_a_zhang'];
+    run.player.deck = [{ id: 'strike', up: 0 }, { id: 'strike', up: 0 }, { id: 'strike', up: 0 }, { id: 'strike', up: 0 }];
+    forceCombat(run, ['mn_paperman'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 10; c.enemies[0].maxHp = 10; c.enemies[0].block = 0;
+    const goldB = run.player.gold;
+    for (let i = c.hand.length - 1; i >= 0; i--) {
+      if (Engine.canPlay(run, i)) { Engine.playCard(run, i, 0); break; }
+    }
+    assert(run.screen !== 'combat' || c.enemies[0].dead, '未能击杀敌人');
+    if (run.screen === 'reward') {
+      // 胜利金币含张伟的 35(基础奖励 10-20 + 35)
+      assert(run.player.gold >= goldB + 35, `张伟的金币未到账: ${goldB} -> ${run.player.gold}`);
+    }
+  }
+  // 主题:存档回环
+  {
+    const run = Engine.newThemeRun('mystery', 9011);
+    let steps = 0;
+    while (run.screen === 'map' && steps < 50) {
+      const reach = Engine.reachableNodes(run);
+      Engine.enterNode(run, reach[0].row, reach[0].i);
+      steps++;
+      if (run.screen === 'combat') break;
+      if (run.screen === 'reward' || run.screen === 'treasure') Engine.leaveReward(run);
+      else if (run.screen === 'rest') { Engine.restHeal(run); Engine.leaveRest(run); }
+      else if (run.screen === 'event') { Engine.chooseEvent(run, 0); Engine.leaveEvent(run); }
+      else if (run.screen === 'shop') Engine.leaveShop(run);
+    }
+    Engine.saveRun(run);
+    const loaded = Engine.loadRun();
+    assert(loaded !== null, '主题存档读取失败');
+    if (loaded) {
+      assert(loaded.theme === 'mystery', '主题存档 theme 丢失');
+      for (let n = 0; n < 20 && loaded.screen !== 'gameover'; n++) {
+        actOnce(loaded);
+        checkInvariants(loaded, '主题读档后');
+      }
+    }
+  }
   // --- 存档回环 ---
   {
     const run = Engine.newRun('ranger', 31415);
@@ -735,7 +1163,9 @@ function smartCombatAct(run) {
   Engine.endTurn(run);
 }
 function simulateSmart(cls, seed) {
-  const run = Engine.newRun(cls, seed);
+  return driveSmartRun(Engine.newRun(cls, seed), 'smart ' + cls + '#' + seed);
+}
+function driveSmartRun(run, tag) {
   let steps = 0;
   while (run.screen !== 'gameover' && run.screen !== 'victory' && steps < 30000) {
     steps++;
@@ -771,10 +1201,15 @@ function simulateSmart(cls, seed) {
       } else if (run.screen === 'shop') {
         if (run.shop.awaitingRemove) { Engine.shopRemoveCard(run, worstDeckIndex(run)); continue; }
         const s = run.shop;
-        // 买遗物 > 移除服务 > 药水
+        // 买遗物 > 伙伴 > 移除服务 > 药水
         let bought = false;
         for (const it of s.relics) {
           if (!it.sold && run.player.gold > it.price + 50) { Engine.buyShopItem(run, 'relic', s.relics.indexOf(it)); bought = true; break; }
+        }
+        if (!bought && s.allies) {
+          for (const it of s.allies) {
+            if (!it.sold && run.player.gold > it.price + 80) { Engine.buyShopItem(run, 'ally', s.allies.indexOf(it)); bought = true; break; }
+          }
         }
         if (!bought && run.player.gold > 200 && !s.removeUsed) { Engine.buyShopItem(run, 'remove', 0); if (s.awaitingRemove) Engine.shopRemoveCard(run, worstDeckIndex(run)); bought = true; }
         if (!bought) {
@@ -796,10 +1231,10 @@ function simulateSmart(cls, seed) {
         actOnce(run);
       }
     } catch (e) {
-      fail(`[smart ${cls}#${seed}] 步${steps} screen=${run.screen} 异常: ${e.stack}`);
+      fail(`[${tag}] 步${steps} screen=${run.screen} 异常: ${e.stack}`);
       return run;
     }
-    checkInvariants(run, `smart ${cls}#${seed}`);
+    checkInvariants(run, tag);
   }
   return run;
 }
@@ -845,65 +1280,112 @@ function smartMapAct(run) {
 /* ================= 主流程 ================= */
 const args = process.argv.slice(2);
 const quick = args.includes('--quick');
+// --themes:N 只做主题平衡采样(调参用)
+const themeOnlyArg = args.find(a => a.startsWith('--themes='));
+const themeOnly = !!themeOnlyArg;
+const themeSampleN = themeOnlyArg ? parseInt(themeOnlyArg.split('=')[1], 10) || 10 : 0;
 
-console.log('== 机制定向测试 ==');
-mechanicTests();
+if (!themeOnly) {
+  console.log('== 机制定向测试 ==');
+  mechanicTests();
+}
 
 console.log('== 全量模糊对局 ==');
 const runsPerClass = quick ? 4 : 12;
 const classes = ['warrior', 'ranger', 'warlock'];
 let wins = 0, total = 0;
-for (const cls of classes) {
-  for (let i = 0; i < runsPerClass; i++) {
-    const seed = (Math.random() * 4294967296) >>> 0;
-    const run = simulateRun(cls, seed);
-    total++;
-    if (run.player.stats && run.player.stats.won) wins++;
+if (!themeOnly) {
+  for (const cls of classes) {
+    for (let i = 0; i < runsPerClass; i++) {
+      const seed = (Math.random() * 4294967296) >>> 0;
+      const run = simulateRun(cls, seed);
+      total++;
+      if (run.player.stats && run.player.stats.won) wins++;
+    }
   }
+  console.log(`对局 ${total} 局,其中登顶 ${wins} 局`);
 }
-console.log(`对局 ${total} 局,其中登顶 ${wins} 局`);
 
 console.log('== 聪明 Bot 对局(验证可通关) ==');
 const smartN = quick ? 3 : 10;
 let smartWins = 0, smartTotal = 0;
 const actReached = { 1: 0, 2: 0, 3: 0 };
-for (const cls of classes) {
-  for (let i = 0; i < smartN; i++) {
+if (!themeOnly) {
+  for (const cls of classes) {
+    for (let i = 0; i < smartN; i++) {
+      const seed = (Math.random() * 4294967296) >>> 0;
+      const run = simulateSmart(cls, seed);
+      smartTotal++;
+      actReached[Math.min(run.act, 3)] = (actReached[Math.min(run.act, 3)] || 0) + 1;
+      if (run.player.stats && run.player.stats.won) smartWins++;
+    }
+  }
+  console.log(`聪明Bot ${smartTotal} 局,登顶 ${smartWins} 局,到达幕分布: ${JSON.stringify(actReached)}`);
+  // 判定:策略简单的 Bot 无需通关,但至少要能推进到后期
+  const deepRate = ((actReached[3] || 0) + smartWins) / smartTotal;
+  const midRate = ((actReached[2] || 0) + (actReached[3] || 0) + smartWins) / smartTotal;
+  if (smartTotal >= 12 && deepRate === 0 && midRate < 0.12) fail('聪明Bot推进能力异常,游戏可能过难或存在回归');
+}
+
+console.log('== 联动主题对局(神秘复苏 / 咒术回战) ==');
+const themeRuns = themeOnly ? themeSampleN : (quick ? 3 : 10);
+const themeWinRate = {};
+const themeAvgAct = {};
+for (const theme of GS.THEMES.all) {
+  let themeWins = 0, themeActs = 0, themeTotal = 0;
+  for (let i = 0; i < themeRuns; i++) {
     const seed = (Math.random() * 4294967296) >>> 0;
-    const run = simulateSmart(cls, seed);
-    smartTotal++;
-    actReached[Math.min(run.act, 3)] = (actReached[Math.min(run.act, 3)] || 0) + 1;
-    if (run.player.stats && run.player.stats.won) smartWins++;
+    const run = Engine.newThemeRun(theme.id, seed);
+    // 主题局由智能 Bot 驱动,验证专属卡池/敌人/镜域节点不会崩溃
+    driveSmartRun(run, `theme ${theme.id}#${seed}`);
+    themeTotal++;
+    themeActs += run.act;
+    if (run.player.stats && run.player.stats.won) themeWins++;
+    if (!run.player.deck.every(x => CARDS.get(x.id))) fail(`[${theme.id}] 卡组含未知卡牌`);
+  }
+  const avgAct = themeActs / themeTotal;
+  const wr = themeWins / themeTotal;
+  themeWinRate[theme.id] = wr;
+  themeAvgAct[theme.id] = avgAct;
+  console.log(`  ${theme.art} ${theme.name}:${themeTotal} 局,通关 ${themeWins} 局(${Math.round(wr * 100)}%),平均到达第 ${avgAct.toFixed(2)} 段`);
+}
+// 平衡护栏:主题既不能强到离谱,也不能弱到推进不动
+if (themeRuns >= 8) {
+  let themeWinsTotal = 0, avgSum = 0, avgN = 0;
+  for (const id in themeWinRate) {
+    themeWinsTotal += themeWinRate[id];
+    avgSum += themeAvgAct[id]; avgN++;
+    if (themeWinRate[id] > 0.45) fail(`主题 ${id} 通关率 ${Math.round(themeWinRate[id] * 100)}%,可能过于简单`);
+    if (themeAvgAct[id] < 1.8) fail(`主题 ${id} 平均只到第 ${themeAvgAct[id].toFixed(2)} 段,可能过难或机制失效`);
+  }
+  if (themeWinsTotal === 0 && avgSum / Math.max(1, avgN) < 2.8) {
+    fail('联动主题整体推进能力异常,可能过难或存在回归');
   }
 }
-console.log(`聪明Bot ${smartTotal} 局,登顶 ${smartWins} 局,到达幕分布: ${JSON.stringify(actReached)}`);
-// 判定:策略简单的 Bot 无需通关,但至少要能推进到后期
-const deepRate = ((actReached[3] || 0) + smartWins) / smartTotal;
-const midRate = ((actReached[2] || 0) + (actReached[3] || 0) + smartWins) / smartTotal;
-if (smartTotal >= 12 && deepRate === 0 && midRate < 0.12) fail('聪明Bot推进能力异常,游戏可能过难或存在回归');
 
 console.log('== 强化Bot(验证胜利/无尽路径) ==');
-for (let i = 0; i < 3; i++) {
-  const seed = (Math.random() * 4294967296) >>> 0;
-  const cls = classes[i % 3];
-  const run = Engine.newRun(cls, seed);
-  // 给予强力开局,验证胜利与无尽流程可完整走通
-  run.player.maxHp = 300; run.player.hp = 300; run.player.gold = 999;
-  for (let k = 0; k < 6; k++) run.player.deck.push({ id: 'bludgeon', up: 1 });
-  for (let k = 0; k < 6; k++) run.player.deck.push({ id: 'impervious', up: 1 });
-  Engine.acquireRelic(run, 'manapearl');
-  let steps = 0, endlessReached = false;
-  while (run.screen !== 'gameover' && steps < 30000) {
-    steps++;
-    if (run.screen === 'combat') smartCombatAct(run);
-    else if (run.screen === 'victory') {
-      if (!endlessReached) { endlessReached = true; Engine.continueEndless(run); }
-      else break;
-    } else actOnce(run);
-    checkInvariants(run, `buffed ${cls}#${seed}`);
+if (!themeOnly) {
+  for (let i = 0; i < 3; i++) {
+    const seed = (Math.random() * 4294967296) >>> 0;
+    const cls = classes[i % 3];
+    const run = Engine.newRun(cls, seed);    // 给予强力开局,验证胜利与无尽流程可完整走通
+    run.player.maxHp = 300; run.player.hp = 300; run.player.gold = 999;
+    for (let k = 0; k < 6; k++) run.player.deck.push({ id: 'bludgeon', up: 1 });
+    for (let k = 0; k < 6; k++) run.player.deck.push({ id: 'impervious', up: 1 });
+    Engine.acquireRelic(run, 'manapearl');
+    let steps = 0, endlessReached = false;
+    while (run.screen !== 'gameover' && steps < 30000) {
+      steps++;
+      if (run.screen === 'combat') smartCombatAct(run);
+      else if (run.screen === 'victory') {
+        if (!endlessReached) { endlessReached = true; Engine.continueEndless(run); }
+        else break;
+      } else actOnce(run);
+      checkInvariants(run, `buffed ${cls}#${seed}`);
+    }
+    if (!endlessReached) fail('强化Bot未能触发胜利/无尽流程');
+    else console.log(`  强化Bot ${cls}: 进入无尽(第${run.act}幕) ✓`);
   }
-  if (!endlessReached) fail('强化Bot未能触发胜利/无尽流程');
-  else console.log(`  强化Bot ${cls}: 进入无尽(第${run.act}幕) ✓`);
 }
 
 if (failures === 0) {

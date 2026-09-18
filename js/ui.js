@@ -39,17 +39,51 @@
     demonPact: ['恶魔之力', '每回合结束时失去等同层数的生命'],
     abyssGaze: ['深渊注视', '每回合开始时,随机一名敌人获得等同层数的易伤'],
     lifeConvert: ['生命转化', '每回合开始时失去等同层数的生命,获得 1 点能量'],
-    demonRevive: ['不死鸟之血', '首次受到致命伤害时回复 50% 生命,然后移除此效果']
+    demonRevive: ['不死鸟之血', '首次受到致命伤害时回复 50% 生命,然后移除此效果'],
+    /* ---- 联动主题 ---- */
+    soulfire: ['魂火', '打出「鬼」相关牌时可消耗,提升威力;不随回合消失'],
+    eye: ['阴阳眼', '累积到 10 层时自行开眼:对所有敌人造成大量伤害并获得力量,同时反噬生命'],
+    yinyang: ['阴阳眼(被动)', '每当你获得格挡,额外获得等同层数的格挡,并累积 1 层阴阳眼'],
+    mystBloom: ['彼岸花', '每当你打出一张牌,获得 1 层魂火'],
+    undying: ['活尸', '本场战斗中首次受到致命伤害时不死,并回复 40% 生命'],
+    ghostPower: ['鬼物', '每当你打出一张牌便触发一次,效果由附身的鬼决定'],
+    seal: ['镇压', '造成的伤害 -25%,每回合结束 -1'],
+    sealAction: ['封锁', '下回合无法行动'],
+    weakness: ['弱点', '受到的伤害提高 35%'],
+    ce: ['咒力', '战斗内的燃料:强化攻击牌、支付代价、开启领域'],
+    sixEyes: ['六眼', '每回合开始获得咒力,并提升黑闪几率'],
+    kitchen: ['伏魔御厨子', '每回合结束时对所有敌人造成等同层数的伤害'],
+    fieldBoost: ['领域扩张', '每回合结束时领域之值额外增加'],
+    barrier: ['领域屏障', '抵挡一次伤害后消失'],
+    scorch: ['灼伤', '回合结束时受到等同层数的伤害,然后 -1 层'],
+    wei: ['咒力护甲', '受到的攻击伤害 -35%'],
+    /* ---- 联动主题二批 ---- */
+    witchscent: ['魔女之香', '灾祸闻香而来:敌人的攻击 +25%,每回合结束 -1 层;部分卡牌可将其转化为力量'],
+    rewind: ['死亡回归(额外)', '死亡时额外倒回至战斗开始时的生命'],
+    unseen: ['看不见的手', '每回合开始时,对随机敌人造成等同层数的伤害'],
+    gluttony: ['暴食的权能', '每当有敌人死亡,回复等同层数的生命并获得 1 点力量'],
+    cudgel: ['棍势', '金箍棒的势:被「千钧重棍」等牌消耗,打出爆发伤害'],
+    growstaff: ['法天象地', '每当你打出一张攻击牌,获得 1 层棍势'],
+    majesty: ['大圣威仪', '每回合开始时获得 2 层棍势'],
+    sixarms: ['三头六臂', '你的攻击牌伤害提升(每层 +2)'],
+    dragonforce: ['龙之意志', '每层使你的攻击 +15%(最多按 2 层计),每回合结束 -1 层'],
+    scales: ['灭龙之鳞', '每回合开始时,获得等同层数的格挡'],
+    monkeys: ['身外身法', '每回合开始时,将 1 张「猴子猴孙」加入手牌'],
+    burnlife: ['燃烧生命', '回合结束时失去等同层数的生命'],
+    plasmaspark: ['等离子火花', '每当你消耗光能,对所有敌人造成等同消耗量的伤害'],
+    eternal: ['永恒之辉', '光能不再随回合消耗;2 层时每回合开始额外 +1 光能']
   };
 
   const NODE_META = {
     combat: ['⚔️', '战斗', '#e05252'],
     elite: ['💀', '精英战斗', '#c05aff'],
-    rest: ['🔥', '篝火', '#f0a050'],
+    rest: ['🔥', '营地', '#f0a050'],
     shop: ['🏪', '商店', '#5ad0a0'],
     event: ['❓', '未知事件', '#8ab8ff'],
     treasure: ['🎁', '宝箱', '#f0c96a'],
-    boss: ['👑', 'BOSS', '#ff4040']
+    boss: ['👑', 'BOSS', '#ff4040'],
+    curse: ['🩸', '咒物祭坛', '#ff6b9d'],
+    ward: ['🛡️', '镇魂结界', '#7fe7d0']
   };
 
   const CLASS_META = {
@@ -58,12 +92,37 @@
     warlock: { name: '术士', art: '🔮', desc: '与深渊做交易的秘法师。<br>以生命为筹码,换取毁灭性的力量。', relic: '蚀刻颅骨:战斗开始时获得 5 点格挡' }
   };
 
+  // 联动主题:从 GS.THEMES 动态生成职业信息,复用同一套渲染
+  function themeMetaList() { return (GS.THEMES && GS.THEMES.all) || []; }
+  // 各主题卡牌角标
+  const THEME_CARD_TAG = {
+    mystery: '鬼物', rezero: '精灵', ultraman: '光能', wukong: '西游', fairytail: '灭龙'
+  };
+  function themeMeta(t) {
+    return {
+      theme: t.id,
+      name: t.name,
+      art: t.art,
+      desc: t.desc,
+      relic: t.relic,
+      tip: t.tip,
+      tag: t.tag
+    };
+  }
+  function classMeta(cls) {
+    if (CLASS_META[cls]) return CLASS_META[cls];
+    const t = GS.THEMES && GS.THEMES.byClass(cls);
+    return t ? themeMeta(t) : { name: cls, art: '❔', desc: '', relic: '' };
+  }
+  function themeOfRun(run) { return run && run.theme && GS.THEMES ? GS.THEMES.get(run.theme) : null; }
+
   const UI = {
     run: null,
     busy: false,
     targeting: null,   // {mode:'card'|'potion', idx}
     discardPicks: [],
     selClass: 'warrior',
+    selTheme: null,
     gameoverHandled: false,
 
     /* ================= 初始化 ================= */
@@ -176,8 +235,22 @@
       orb.querySelector('.hp-text').textContent = p.hp + '/' + p.maxHp;
       orb.onclick = () => this.tooltipText(`生命 ${p.hp} / ${p.maxHp}`);
       $('#hud-gold').textContent = '🪙 ' + p.gold;
-      const actName = run.act > 3 ? `无尽·第${run.act - 3}轮` : `第${run.act}幕`;
+      const theme = themeOfRun(run);
+      let actName;
+      if (theme) {
+        const acts = theme.acts;
+        actName = run.act > acts.length ? `无尽·第${run.act - acts.length}轮` : (acts[run.act - 1] ? acts[run.act - 1].name : theme.name);
+      } else {
+        actName = run.act > 3 ? `无尽·第${run.act - 3}轮` : `第${run.act}幕`;
+      }
       $('#hud-floor').textContent = `${actName} · 第${run.floorTotal}层`;
+      const title = $('#hud-title');
+      if (theme) {
+        title.innerHTML = `<span class="theme-badge">${theme.art} ${esc(theme.name)}</span>` +
+          (run.player.curse ? `<span class="curse-badge" title="污染:每层使你的伤害提高,同时镜域之值更深">🩸 污染 ${run.player.curse}</span>` : '');
+      } else {
+        title.textContent = '微光尖塔';
+      }
       // 药水
       const potBox = $('#hud-potions');
       potBox.innerHTML = '';
@@ -196,20 +269,62 @@
       relBox.innerHTML = '';
       for (const id of p.relics) {
         const d = RELICS.get(id);
+        if (!d) continue;
         const ic = el('div', 'relic-icon', d.art);
         this.attachTip(ic, `<b>${esc(d.name)}</b><br>${esc(d.desc)}`);
         relBox.appendChild(ic);
       }
+      // 伙伴
+      const allyBox = $('#hud-allies');
+      if (allyBox) {
+        allyBox.innerHTML = '';
+        for (const aid of (p.allies || [])) {
+          const d = GS.THEMES && GS.THEMES.allyMap && GS.THEMES.allyMap[aid];
+          if (!d) continue;
+          const ic = el('div', 'ally-icon', d.art);
+          this.attachTip(ic, `<b>伙伴 · ${esc(d.name)}</b><br>${esc(d.desc)}<br><span style="color:#9aa3c7">每回合开始时生效(伙伴 ${(p.allies || []).length}/4)</span>`);
+          allyBox.appendChild(ic);
+        }
+      }
       // 战斗数值
       const c = run.combat;
       if (run.screen === 'combat' && c) {
-        const heroArt = CLASS_META[run.cls].art;
-        $('#player-avatar').innerHTML = `<span class="art-emoji">${heroArt}</span><img class="hero-img" src="assets/heroes/${run.cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">`;
-        this.attachTip($('#player-avatar'), `<b>${CLASS_META[run.cls].name}</b><br>生命 ${p.hp}/${p.maxHp}`);
+        const meta = classMeta(run.cls);
+        $('#player-avatar').innerHTML = `<span class="art-emoji">${meta.art}</span><img class="hero-img" src="assets/heroes/${run.cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">`;
+        this.attachTip($('#player-avatar'), `<b>${esc(meta.name)}</b><br>生命 ${p.hp}/${p.maxHp}`);
         $('#player-block').innerHTML = c.player.block > 0 ? `<div class="block-badge">🛡 ${c.player.block}</div>` : '';
         $('#player-status').innerHTML = '';
+        if (theme) {
+          if (c.player.ghostName) {
+            const isSpirit = (c.player.ghostKey || '').indexOf('rz_') === 0;
+            const chip = el('span', 'status-chip ghost' + (isSpirit ? ' spirit' : ''), `${isSpirit ? '🧚' : '👻'} ${esc(c.player.ghostName)}`);
+            const gd = (GS.THEMES.ghosts && GS.THEMES.ghosts[c.player.ghostKey]) || [c.player.ghostName, ''];
+            const trigTxt = isSpirit ? '每当你打出一张技能牌,就会触发一次' : '每当你打出一张牌,就会触发一次';
+            this.attachTip(chip, `<b>${esc(gd[0])} · 强度 ${c.player.statuses.ghostPower || 1}</b><br>${esc(gd[1])}<br><span style="color:#9aa3c7">${trigTxt}</span>`);
+            $('#player-status').appendChild(chip);
+          }
+          if (c.ce > 0) {
+            const chip = el('span', 'status-chip ce', `💠 咒力 ${c.ce}`);
+            this.attachTip(chip, `<b>咒力</b><br>强化咒术牌、支付代价、开启领域`);
+            $('#player-status').appendChild(chip);
+          }
+          if (c.light) {
+            const redlineV = (theme.redline || 3) + ((GS.RELICS.get('ul_meter') && run.player.relics.includes('ul_meter')) ? 1 : 0);
+            const low = c.light.val <= redlineV;
+            const chip = el('span', 'status-chip light' + (low ? ' low' : ''), `🔴 光能 ${c.light.val}/${c.light.max}`);
+            this.attachTip(chip, `<b>光能</b><br>每回合结束 -1;≤ ${redlineV} 时进入「红色警戒」,攻击大幅提升。<br><span style="color:#9aa3c7">归零后每回合受到能量枯竭伤害</span>`);
+            $('#player-status').appendChild(chip);
+          }
+          if (theme.id === 'fairytail') {
+            const chip = el('span', 'status-chip bond', `🤝 羁绊 ${c.combatCards || 0}`);
+            this.attachTip(chip, `<b>羁绊</b><br>本场战斗中打出的牌数;部分灭龙魔法随羁绊增强`);
+            $('#player-status').appendChild(chip);
+          }
+        }
         for (const [k, v] of Object.entries(c.player.statuses)) {
           if (!v) continue;
+          if (k === 'ghostPower') continue;
+          if (theme && k === 'ce') continue;
           $('#player-status').appendChild(this.statusChip(k, v));
         }
         $('#energy-text').textContent = c.player.energy + '/' + c.player.maxEnergy;
@@ -226,7 +341,7 @@
 
     statusChip(key, v) {
       const info = STATUS_EXPLAIN[key] || [CARDS.STATUS_TEXT[key] || key, ''];
-      const isDebuff = ['vuln', 'weak', 'frail', 'poison'].includes(key);
+      const isDebuff = ['vuln', 'weak', 'frail', 'poison', 'seal', 'sealAction', 'weakness', 'scorch', 'witchscent', 'burnlife'].includes(key);
       const chip = el('span', 'status-chip ' + (isDebuff ? 'debuff' : 'buff'), `${info[0]} ${v}`);
       this.attachTip(chip, `<b>${esc(info[0])}</b><br>${esc(info[1])}`);
       return chip;
@@ -255,6 +370,7 @@
         <div class="cname">${esc(view.name)}</div>
         <div class="cart">${{ attack: '攻击', skill: '技能', power: '能力', curse: '诅咒', status: '状态' }[view.type] || ''}</div>
         <div class="cdesc">${esc(desc)}</div>
+        ${view.tech ? '<div class="ctag">咒术</div>' : (THEME_CARD_TAG[view.cls] ? `<div class="ctag ghost">${THEME_CARD_TAG[view.cls]}</div>` : '')}
         <div class="rarity-gem"></div>`;
       if (view.ethereal) card.title = '';
       this.attachTip(card, this.cardTip(inst, view), true);
@@ -267,8 +383,17 @@
       if (view.ethereal) extra.push('虚无');
       if (view.innate) extra.push('固有');
       if (view.unplayable) extra.push('无法打出');
+      if (view.tech) extra.push('咒术:每回合第一张免费');
       const rarityMap = { basic: '初始', common: '普通', uncommon: '罕见', rare: '稀有', special: '特殊' };
       let html = `<b>${esc(view.name)}</b> <span style="color:#9aa3c7">(${rarityMap[view.rarity] || ''})</span><br>${esc(view.desc || '')}`;
+      const run = this.run;
+      if (run && run.screen === 'combat' && run.combat) {
+        const live = [];
+        if (view.dmg) live.push(`当前伤害 <b style="color:#ff9a76">${Engine.calcCardDamage(run, inst, null)}</b>`);
+        if (view.block) live.push(`当前格挡 <b style="color:#6ee7ff">${Engine.calcCardBlock(run, inst)}</b>`);
+        if (view.tech) live.push(`本回合咒力 <b style="color:#c9a6ff">${run.combat.ce || 0}</b>`);
+        if (live.length) html += `<br><span style="color:#9aa3c7">${live.join(' · ')}</span>`;
+      }
       if (extra.length) html += `<br><span style="color:#6ee7ff">${extra.join(' · ')}</span>`;
       return html;
     },
@@ -435,15 +560,37 @@
         row.appendChild(box);
       });
       area.appendChild(row);
+      // 联动主题:域之量表(积满会反噬)
+      if (c.field) {
+        const pctv = Math.max(0, Math.min(100, c.field.val / c.field.max * 100));
+        const danger = c.field.val / c.field.max >= 0.66;
+        const gauge = el('div', 'field-gauge' + (danger ? ' danger' : ''), `
+          <div class="fg-label">${esc(c.field.label)} ${c.field.val}/${c.field.max}</div>
+          <div class="fg-bar"><div class="fg-fill" style="width:${pctv}%"></div></div>
+          <div class="fg-hint">积满将反噬并重置</div>`);
+        this.attachTip(gauge, `<b>${esc(c.field.label)}</b><br>随着回合推进而加深,积满时你受到反噬伤害、敌人获得力量。<br><span style="color:#9aa3c7">「镇压」「简易领域」等牌可以降低此值</span>`);
+        area.appendChild(gauge);
+      }
       screen.appendChild(area);
     },
 
     /* ================= 地图画面 ================= */
     renderMap(screen) {
       const run = this.run;
+      const theme = themeOfRun(run);
       const wrap = el('div', 'map-wrap');
-      const actName = run.act > 3 ? `无尽 · 第 ${run.act - 3} 轮` : `第 ${run.act} 幕`;
-      wrap.appendChild(el('div', 'map-title', `${actName} — 微光尖塔`));
+      let actName;
+      if (theme) {
+        actName = run.act > theme.acts.length
+          ? `无尽 · 第 ${run.act - theme.acts.length} 轮`
+          : (theme.acts[run.act - 1] ? theme.acts[run.act - 1].name : theme.name);
+      } else {
+        actName = run.act > 3 ? `无尽 · 第 ${run.act - 3} 轮` : `第 ${run.act} 幕`;
+      }
+      wrap.appendChild(el('div', 'map-title', `${actName} — ${theme ? theme.name : '微光尖塔'}`));
+      if (theme && run.act <= theme.acts.length && theme.acts[run.act - 1] && theme.acts[run.act - 1].intro) {
+        wrap.appendChild(el('div', 'map-intro', theme.acts[run.act - 1].intro));
+      }
       const scroll = el('div', 'map-scroll');
       const inner = el('div', 'map-inner');
       inner.innerHTML = '<svg id="map-svg"></svg>';
@@ -465,6 +612,7 @@
           nd.style.left = (8 + node.x * 84) + '%';
           nd.style.top = '50%';
           nd.dataset.pos = key;
+          nd.dataset.type = node.type;
           this.attachTip(nd, `<b style="color:${color}">${name}</b>`);
           if (reachSet.has(key)) {
             nd.onclick = () => {
@@ -647,6 +795,26 @@
         sec2.appendChild(wrap);
       });
       grid.appendChild(sec2);
+      // 伙伴货架(主题局)
+      if (s.allies && s.allies.length) {
+        const secA = el('div', 'shop-section');
+        secA.appendChild(el('div', 'shop-label', `— 🤝 伙 伴(${(run.player.allies || []).length}/4)—`));
+        s.allies.forEach((it, i) => {
+          const d = GS.THEMES && GS.THEMES.allyMap && GS.THEMES.allyMap[it.id];
+          if (!d) return;
+          const price = Engine.shopPrice(run, it.price);
+          const wrap = el('div', 'shop-item ally-item' + (it.sold ? ' sold' : ''));
+          wrap.innerHTML = `<div class="big-ic">${d.art}</div><div class="sub-name">${esc(d.name)}</div><div class="ally-desc">${esc(d.desc)}</div>`;
+          this.attachTip(wrap, `<b>伙伴 · ${esc(d.name)}</b><br>${esc(d.desc)}<br><span style="color:#9aa3c7">购买后伴随整个镜域之旅,每回合开始时生效</span>`);
+          wrap.appendChild(el('div', 'price', '🪙 ' + price));
+          wrap.onclick = () => {
+            if (Engine.buyShopItem(run, 'ally', i)) { AudioFX.play('relic'); this.update(); }
+            else this.toast('金币不足或伙伴已满(4 名)');
+          };
+          secA.appendChild(wrap);
+        });
+        grid.appendChild(secA);
+      }
       // 移除服务
       const sec3 = el('div', 'shop-section');
       const rmPrice = Engine.removePrice(run);
@@ -725,14 +893,18 @@
     /* ================= 结算画面 ================= */
     renderGameover(screen) {
       const run = this.run;
+      const theme = themeOfRun(run);
       const panel = el('div', 'panel-screen');
       panel.appendChild(el('div', 'end-art', '💀'));
-      panel.appendChild(el('div', 'end-title lose', '你倒下了'));
+      panel.appendChild(el('div', 'end-title lose', theme ? '你被鬼潮吞没了' : '你倒下了'));
       const sc = Engine.score(run);
       const pts = Engine.awardRunPoints(run);
       const table = el('div', 'score-table');
+      const prog = theme
+        ? `到达:<b>${run.act <= theme.acts.length ? theme.acts[run.act - 1].name : '无尽'}</b> · 第 ${run.floorTotal} 层`
+        : `到达:<b>${run.act > 3 ? '无尽 第' + (run.act - 3) + ' 轮' : '第 ' + run.act + ' 幕'}</b> · 第 ${run.floorTotal} 层`;
       table.innerHTML = `
-        <span>到达:<b>${run.act > 3 ? '无尽 第' + (run.act - 3) + ' 轮' : '第 ' + run.act + ' 幕'}</b> · 第 ${run.floorTotal} 层</span>
+        <span>${prog}</span>
         <span>击败敌人:<b>${run.player.stats.enemies}</b> · BOSS:<b>${run.player.stats.bosses}</b></span>
         <span>剩余金币:<b>${run.player.gold}</b></span>
         <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
@@ -751,15 +923,20 @@
 
     renderVictory(screen) {
       const run = this.run;
+      const theme = themeOfRun(run);
+      const meta = classMeta(run.cls);
       const panel = el('div', 'panel-screen');
-      panel.appendChild(el('div', 'end-art', '🏆'));
-      panel.appendChild(el('div', 'end-title win', '登顶成功!'));
+      panel.appendChild(el('div', 'end-art', theme ? theme.art : '🏆'));
+      panel.appendChild(el('div', 'end-title win', theme ? `${theme.name} · 镜域制霸!` : '登顶成功!'));
       const sc = Engine.score(run);
       const pts = Engine.awardRunPoints(run);
       const table = el('div', 'score-table');
+      const loc = theme
+        ? `通关镜域:<b>${theme.acts.map(a => a.name).join(' → ')}</b>`
+        : `职业:<b>${meta.name}</b> · 击败敌人:<b>${run.player.stats.enemies}</b>`;
       table.innerHTML = `
-        <span>职业:<b>${CLASS_META[run.cls].name}</b> · 击败敌人:<b>${run.player.stats.enemies}</b></span>
-        <span>总层数:<b>${run.floorTotal}</b> · 剩余金币:<b>${run.player.gold}</b></span>
+        <span>${loc}</span>
+        <span>总层数:<b>${run.floorTotal}</b> · 剩余金币:<b>${run.player.gold}</b>${theme ? ` · 污染:<b>${run.player.curse || 0}</b>` : ''}</span>
         <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
         <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>`;
       panel.appendChild(table);
@@ -781,28 +958,53 @@
       const wrap = el('div', 'menu-wrap');
       wrap.appendChild(el('div', 'game-title', '微光尖塔'));
       wrap.appendChild(el('div', 'game-sub', 'GLIMMER SPIRE'));
-      // 职业卡
+      const mode = this.selTheme ? 'theme' : 'class';
+      // 模式切换
+      const tabs = el('div', 'mode-tabs');
+      const tabClass = el('button', 'mode-tab' + (mode === 'class' ? ' active' : ''), '⚔️ 经典攀登');
+      tabClass.onclick = () => { AudioFX.play('click'); this.selTheme = null; this.render(); };
+      const tabTheme = el('button', 'mode-tab' + (mode === 'theme' ? ' active' : ''), '🌀 联动主题');
+      tabTheme.onclick = () => {
+        AudioFX.play('click');
+        if (!this.selTheme) this.selTheme = themeMetaList()[0] ? themeMetaList()[0].id : null;
+        this.render();
+      };
+      tabs.append(tabClass, tabTheme);
+      wrap.appendChild(tabs);
+
       const cards = el('div', 'class-cards');
-      for (const [cls, meta] of Object.entries(CLASS_META)) {
-        const card = el('div', 'class-card' + (this.selClass === cls ? ' selected' : ''),
-          `<div class="class-art"><span class="art-emoji">${meta.art}</span><img src="assets/heroes/${cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt=""></div><div class="class-name">${meta.name}</div><div class="class-desc">${meta.desc}</div><div class="class-relic">${meta.relic}</div>`);
-        card.onclick = () => { AudioFX.play('click'); this.selClass = cls; this.render(); };
-        cards.appendChild(card);
+      if (mode === 'class') {
+        for (const [cls, meta] of Object.entries(CLASS_META)) {
+          cards.appendChild(this.classCard(cls, meta, false));
+        }
+      } else {
+        for (const t of themeMetaList()) {
+          cards.appendChild(this.classCard(t.cls, themeMeta(t), true));
+        }
+        wrap.appendChild(el('div', 'theme-hint',
+          '联动主题是独立的卡组与闯关模式:专属卡池、专属敌人与 BOSS,以及随层数加深的「污染」与「领域」。'));
       }
       wrap.appendChild(cards);
+
       const btns = el('div', 'menu-btns');
-      const start = el('button', 'primary', `开始攀登 · ${CLASS_META[this.selClass].name}`);
+      const meta = this.selTheme ? themeMeta(GS.THEMES.get(this.selTheme)) : CLASS_META[this.selClass];
+      const start = el('button', 'primary', this.selTheme ? `进入镜域 · ${meta.name}` : `开始攀登 · ${meta.name}`);
       start.onclick = () => {
         AudioFX.resume();
         AudioFX.play('relic');
         this.gameoverHandled = false;
-        this.run = Engine.newRun(this.selClass);
+        this.run = this.selTheme ? Engine.newThemeRun(this.selTheme) : Engine.newRun(this.selClass);
         this.update();
       };
       btns.appendChild(start);
       const saved = Engine.loadRun();
       if (saved) {
-        const cont = el('button', '', `继续上次攀登(${saved.act > 3 ? '无尽' : '第' + saved.act + '幕'} · 第${saved.floorTotal}层 · ${CLASS_META[saved.cls].name})`);
+        const savedMeta = classMeta(saved.cls);
+        const savedTheme = themeOfRun(saved);
+        const loc = savedTheme
+          ? `${savedTheme.name} · ${savedTheme.acts[Math.min(saved.act - 1, savedTheme.acts.length - 1)].name}`
+          : (saved.act > 3 ? '无尽' : '第' + saved.act + '幕');
+        const cont = el('button', '', `继续上次攀登(${loc} · 第${saved.floorTotal}层 · ${savedMeta.name})`);
         cont.onclick = () => {
           AudioFX.resume();
           AudioFX.play('click');
@@ -822,6 +1024,23 @@
       btns.appendChild(help);
       wrap.appendChild(btns);
       scr.appendChild(wrap);
+    },
+
+    classCard(cls, meta, isTheme) {
+      const selected = isTheme ? this.selTheme === meta.theme : (!this.selTheme && this.selClass === cls);
+      const card = el('div', 'class-card' + (selected ? ' selected' : '') + (isTheme ? ' theme-card' : ''),
+        `<div class="class-art"><span class="art-emoji">${meta.art}</span>` +
+        (isTheme ? '' : `<img src="assets/heroes/${cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">`) +
+        `</div><div class="class-name">${esc(meta.name)}</div>` +
+        (isTheme && meta.tag ? `<div class="class-tag">${esc(meta.tag)}</div>` : '') +
+        `<div class="class-desc">${meta.desc}</div><div class="class-relic">${meta.relic}</div>`);
+      card.onclick = () => {
+        AudioFX.play('click');
+        if (isTheme) this.selTheme = meta.theme;
+        else { this.selClass = cls; this.selTheme = null; }
+        this.render();
+      };
+      return card;
     },
 
     toMenu() {
@@ -974,7 +1193,19 @@
         <span class="kbd">1-9</span> 打出对应手牌 · <span class="kbd">E</span> 结束回合 · <span class="kbd">Esc</span> 取消/关闭
         <h4>存档与技能包</h4>
         每走一步自动存档,关闭页面后可从主菜单继续。每局结算按得分累积<b style="color:#6ee7ff">积分</b>,
-        在主菜单的<b>技能包商店</b>解锁新流派卡牌(永久加入对应职业卡池)。`));
+        在主菜单的<b>技能包商店</b>解锁新流派卡牌(永久加入对应职业卡池)。
+        <h4>🌀 联动主题(特殊卡组)</h4>
+        主菜单切到<b>联动主题</b>即可进入独立卡组与独立闯关模式:专属卡池、专属敌人与 BOSS、
+        以及随层数加深的<b>污染</b>与<b>领域</b>机制,打赢主题 BOSS 会直接进入下一片镜域。
+        <div style="margin-top:8px" id="theme-help-list"></div>`));
+      const list = modal.querySelector('#theme-help-list');
+      for (const t of themeMetaList()) {
+        const box = el('div', 'help-theme');
+        box.innerHTML = `<b style="color:#f0c96a">${t.art} ${esc(t.name)}</b>
+          <div style="color:#9aa3c7;margin:2px 0 4px">${esc(t.tag || '')} · 初始遗物:${esc(t.relic)}</div>
+          <div>${esc(t.tip || '')}</div>`;
+        if (list) list.appendChild(box);
+      }
       const btns = el('div', 'modal-btns');
       const close = el('button', '', '开始冒险');
       close.onclick = () => this.closeModal();
@@ -995,9 +1226,10 @@
         <h4>累计积分:${s.points}(已消费 ${s.spent},可用 ${Engine.availablePoints()})</h4>
         <h4>已解锁技能包:${GS.Unlocks.list().length} / ${GS.Unlocks.all.length}</h4>
         <div style="margin-top:10px">
-          ⚔️ 剑士登顶 ${s.classWins.warrior} 次<br>
-          🗡️ 游侠登顶 ${s.classWins.ranger} 次<br>
-          🔮 术士登顶 ${s.classWins.warlock} 次
+          ⚔️ 剑士登顶 ${s.classWins.warrior || 0} 次<br>
+          🗡️ 游侠登顶 ${s.classWins.ranger || 0} 次<br>
+          🔮 术士登顶 ${s.classWins.warlock || 0} 次
+          ${themeMetaList().map(t => `<br>${t.art} ${esc(t.name)} 通关 ${s.classWins[t.cls] || 0} 次`).join('')}
         </div>`));
       const btns = el('div', 'modal-btns');
       const close = el('button', '', '关闭');
@@ -1135,6 +1367,14 @@
                 }
               }
               await sleep(100);
+            } else if (ev.fx === 'blackflash') {
+              const anchor = document.querySelector(`.enemy[data-uid="${ev.uid}"] .art`) || document.querySelector('.enemy .art');
+              if (anchor) this.fxAt(anchor, 'fx-blackflash');
+              const flash = el('div', 'blackflash-text', '黑 闪');
+              document.body.appendChild(flash);
+              setTimeout(() => flash.remove(), 900);
+              AudioFX.play('bigattack');
+              await sleep(420);
             } else if (ev.fx === 'boss') {
               const banner = el('div', 'boss-banner', `⚔ ${esc(ev.name)} ⚔<small>BOSS 战</small>`);
               document.body.appendChild(banner);
@@ -1182,6 +1422,12 @@
             break;
           }
           case 'status': {
+            if (ev.key === 'field') {
+              const gauge = document.querySelector('.field-gauge');
+              if (gauge) { gauge.classList.remove('pulse'); void gauge.offsetWidth; gauge.classList.add('pulse'); }
+              await sleep(60);
+              break;
+            }
             const anchor = ev.who === 'player' ? $('#player-anchor') : document.querySelector(`.enemy[data-uid="${ev.uid}"]`);
             if (anchor && ev.key) this.floatAt(anchor, (CARDS.STATUS_TEXT[ev.key] || ev.key) + ' ' + (ev.v > 0 ? '+' + ev.v : ev.v), 'status');
             await sleep(speed * 0.5);

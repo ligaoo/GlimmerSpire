@@ -726,6 +726,19 @@
       }
       return out;
     },
+    // 联动主题专属池(供主题局奖励/商店使用)
+    themePool(themeId, rarity) {
+      const T = global.GS && global.GS.THEMES;
+      const t = T && T.get(themeId);
+      if (!t) return [];
+      const ids = rarity === 'basic' ? (t.basic || []) : (t.pool || []);
+      return ids.filter(id => {
+        const d = C[id];
+        if (!d) return false;
+        if (rarity && rarity !== 'basic') return d.rarity === rarity;
+        return true;
+      });
+    },
     colorlessPool(rarity) {
       const out = [];
       for (const id in C) { if (C[id].cls === 'colorless' && C[id].rarity === rarity) out.push(id); }
@@ -746,7 +759,17 @@
       barricade: '路障', echo: '回响', corpseExp: '尸爆', fumes: '剧毒烟雾', cuts: '千刀万剐',
       afterimage: '残影', feelNoPain: '麻痹痛楚', drawNext: '抽牌', bloodRage: '血怒', regen: '再生',
       soulCatch: '灵魂收割', bloodPact: '献祭契约', bloodRitual: '献血仪式',
-      demonPact: '恶魔之力', abyssGaze: '深渊注视', lifeConvert: '生命转化', demonRevive: '不死鸟之血'
+      demonPact: '恶魔之力', abyssGaze: '深渊注视', lifeConvert: '生命转化', demonRevive: '不死鸟之血',
+      /* 联动主题 */
+      soulfire: '魂火', eye: '阴阳眼', yinyang: '阴阳眼', mystBloom: '彼岸花', undying: '活尸',
+      ghostPower: '鬼物', seal: '镇压', sealAction: '封锁', weakness: '弱点',
+      ce: '咒力', sixEyes: '六眼', kitchen: '伏魔御厨子', fieldBoost: '领域扩张',
+      barrier: '领域屏障', scorch: '灼伤', wei: '咒力护甲',
+      /* 联动主题二批 */
+      light: '光能', witchscent: '魔女之香', rewind: '死亡回归', unseen: '看不见的手',
+      gluttony: '暴食的权能', cudgel: '棍势', growstaff: '法天象地', majesty: '大圣威仪',
+      sixarms: '三头六臂', dragonforce: '龙之意志', scales: '灭龙之鳞', burnlife: '燃烧生命',
+      plasmaspark: '等离子火花', monkeys: '身外身法'
     }
   };
 

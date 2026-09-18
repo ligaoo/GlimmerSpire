@@ -4,9 +4,61 @@
   'use strict';
   global.GS = global.GS || {};
   const { RNG, CARDS, ENEMIES, RELICS, POTIONS, EVENTS } = GS;
+  const THEMES = GS.THEMES || { all: [], map: {}, get() { return null; }, byClass() { return null; }, enemyDefs: {}, allyMap: {} };
 
   let uidCounter = 1;
   function uid() { return uidCounter++; }
+
+  /* ================= 联动主题支持 ================= */
+  // 主题敌人直接注册进遗物/敌人数据库,复用既有 AI 与结算流程
+  for (const id in THEMES.enemyDefs) ENEMIES.defs[id] = THEMES.enemyDefs[id];
+  for (const t of THEMES.all) {
+    for (const rd of (t.relicDefs || [])) if (!RELICS.defs[rd.id]) RELICS.defs[rd.id] = rd;
+  }
+  if (!RELICS.all.includes('mystbell')) {
+    RELICS.all.push(...THEMES.all.flatMap(t => t.relics || []).filter(id => !RELICS.all.includes(id)));
+  }
+
+  function themeOf(run) { return run && run.theme ? THEMES.get(run.theme) : null; }
+  // 主题局的「幕」= 镜域段;返回该段的定义
+  function themeActOf(run) {
+    const t = themeOf(run);
+    if (!t) return null;
+    return t.acts[Math.min(run.act - 1, t.acts.length - 1)] || null;
+  }
+  // 主题局的敌人遭遇表(超出主题幕数则沿用最后一幕,配合无尽缩放)
+  function themeEncounterTable(run) {
+    const t = themeOf(run);
+    if (!t) return null;
+    const idx = Math.min(Math.max(0, run.act - 1), t.acts.length - 1);
+    return t.acts[idx];
+  }
+  // 遗物抽取池:主题局以主题遗物为主,少量通用遗物作为补充
+  const GENERIC_RELIC_IDS = ['whetstone', 'ironwood', 'coinpurse', 'healpouch', 'potionbelt',
+    'forgehammer', 'ancientcoin', 'gamblerdice', 'heartvessel', 'glassvial', 'hunterblade',
+    'warhammer', 'huntbadge', 'lantern', 'hourglass', 'duelistglove'];
+  function relicPoolFor(run) {
+    const t = themeOf(run);
+    return RELICS.all.filter(id => {
+      const d = RELICS.get(id);
+      if (!d || d.rarity === 'starter') return false;
+      if (owned(run, id)) return false;
+      if (!t) return !d.theme;
+      return d.theme === t.id || GENERIC_RELIC_IDS.includes(id);
+    });
+  }
+  // 主题卡池(rarity 为 null 时返回全部)
+  function themedCardPool(run, rarity) {
+    const t = themeOf(run);
+    if (!t) return [];
+    const ids = (rarity === 'basic' ? t.basic : t.pool) || [];
+    return ids.filter(id => {
+      const d = CARDS.get(id);
+      if (!d) return false;
+      if (rarity && rarity !== 'basic' && d.rarity !== rarity) return false;
+      return true;
+    });
+  }
 
   const SAVE_KEY = 'glimmerSpireSave';
   const STATS_KEY = 'glimmerSpireStats';
@@ -35,7 +87,68 @@
   const NODE_TYPES = ['combat', 'event', 'elite', 'rest', 'shop', 'treasure', 'boss'];
   const ROWS = 15;
 
+  // 镜域地图:结构固定(每 3 层一个「咒物/祭坛」,第 5 层结界,倒数第 2 层营地),行数随段位增长
+  function genDomainMap(run) {
+    const theme = themeOf(run);
+    const act = themeActOf(run);
+    const rows = (act && act.rows) || 12;
+    const map = [];
+    const rowCounts = [3];
+    for (let r = 1; r < rows - 1; r++) rowCounts.push(RNG.int(run, 3, 4));
+    rowCounts.push(1);
+    for (let r = 0; r < rows; r++) {
+      const count = rowCounts[r];
+      const row = [];
+      for (let i = 0; i < count; i++) {
+        row.push({ x: count === 1 ? 0.5 : i / (count - 1), type: 'combat', edges: [] });
+      }
+      map.push(row);
+    }
+    const wardRow = Math.min(rows - 2, 4);
+    map[rows - 1][0].type = 'boss';
+    map[wardRow].forEach(n => { n.type = 'ward'; });
+    map[rows - 2].forEach(n => { n.type = 'rest'; });
+    for (let r = 1; r < rows - 1; r++) {
+      if (r === wardRow || r === rows - 2) continue;
+      for (const n of map[r]) {
+        const roll = RNG.float(run);
+        if (r >= 3 && roll < 0.22) n.type = 'elite';
+        else if (r % 3 === 2 && roll < 0.55) n.type = 'curse';
+        else if (roll < 0.68) n.type = 'combat';
+        else if (roll < 0.80) n.type = 'event';
+        else if (roll < 0.88) n.type = 'rest';
+        else if (roll < 0.95) n.type = 'shop';
+        else n.type = 'treasure';
+      }
+    }
+    linkMapRows(map, run, rows);
+    return map;
+  }
+
+  // 连边:自上而下,每节点连接下一行 x 距离最近的 1-3 个节点
+  function linkMapRows(map, run, rows) {
+    for (let r = 0; r < rows - 1; r++) {
+      const cur = map[r], nxt = map[r + 1];
+      cur.forEach((n) => {
+        const links = r === rows - 2 ? 1 : RNG.int(run, 1, Math.min(3, nxt.length));
+        const sorted = nxt.map((m, j) => ({ j, d: Math.abs(m.x - n.x) + RNG.float(run) * 0.02 })).sort((a, b) => a.d - b.d);
+        const chosen = new Set();
+        for (let k = 0; k < links && k < sorted.length; k++) chosen.add(sorted[k].j);
+        n.edges = [...chosen];
+      });
+      nxt.forEach((m, j) => {
+        const hasIn = cur.some(n => n.edges.includes(j));
+        if (!hasIn) {
+          let best = 0, bd = 9;
+          cur.forEach((n, i) => { const d = Math.abs(n.x - m.x); if (d < bd) { bd = d; best = i; } });
+          cur[best].edges.push(j);
+        }
+      });
+    }
+  }
+
   function genMap(run) {
+    if (themeOf(run)) return genDomainMap(run);
     const map = [];
     // 每行节点数
     const rowCounts = [3];
@@ -70,26 +183,7 @@
       }
     }
     // 连边:自上而下,每节点连接下一行 x 距离最近的 1-3 个节点
-    for (let r = 0; r < ROWS - 1; r++) {
-      const cur = map[r], nxt = map[r + 1];
-      cur.forEach((n, i) => {
-        const links = r === ROWS - 2 ? 1 : RNG.int(run, 1, Math.min(3, nxt.length));
-        // 按 x 距离排序
-        const sorted = nxt.map((m, j) => ({ j, d: Math.abs(m.x - n.x) + RNG.float(run) * 0.02 })).sort((a, b) => a.d - b.d);
-        const chosen = new Set();
-        for (let k = 0; k < links && k < sorted.length; k++) chosen.add(sorted[k].j);
-        n.edges = [...chosen];
-      });
-      // 修复孤点:下一行没有入边的节点连到上一行最近节点
-      nxt.forEach((m, j) => {
-        const hasIn = cur.some(n => n.edges.includes(j));
-        if (!hasIn) {
-          let best = 0, bd = 9;
-          cur.forEach((n, i) => { const d = Math.abs(n.x - m.x); if (d < bd) { bd = d; best = i; } });
-          cur[best].edges.push(j);
-        }
-      });
-    }
+    linkMapRows(map, run, ROWS);
     return map;
   }
 
@@ -100,6 +194,9 @@
     const [a, b] = d.maxHp;
     let hp = RNG.int(run, a, b);
     if (scale > 1) hp = Math.floor(hp * (1 + 0.35 * (scale - 1)));
+    // 主题:污染越深,敌人越强(与玩家伤害加成形成取舍,有上限)
+    const t = themeOf(run);
+    if (t && t.curseHp) hp = Math.floor(hp * (1 + Math.min(0.3, t.curseHp * (run.player.curse || 0))));
     const e = {
       uid: uid(), id, name: d.name, art: d.art,
       hp, maxHp: hp, block: 0, statuses: {}, dead: false,
@@ -134,17 +231,41 @@
   /* ---------- 伤害计算 ---------- */
   function calcPlayerAttack(run, base, target, opts) {
     const st = run.combat.player.statuses;
-    let atk = base + (st.str || 0) + (st.tempStr || 0);
+    let atk = base + (st.str || 0) + (st.tempStr || 0) + (run.combat.mutateBonus || 0);
     if (owned(run, 'courageemblem') && run.player.hp < run.player.maxHp * 0.5) atk += 2;
     if (opts && opts.bonus) atk += opts.bonus;
+    // 「咒力」强化:部分卡牌按当前咒力提升伤害
+    if (opts && opts.ce) atk += (run.combat.ce || 0) * (opts.ceRate || 1);
+    // 主题:污染使所有伤害提高
+    if (opts && opts.curseDmg) atk += opts.curseDmg;
+    // 主题:光之巨人「红色警戒」——彩色计时器告急时全力输出
+    const th = themeOf(run);
+    if (th && th.redline && run.combat.light && run.combat.light.val <= th.redline + relicVal(run, 'redlinePlus')) {
+      atk += th.redlineBonus || 0;
+    }
+    // 主题:「龙之意志」——每层攻击 +15%(最多按 2 层计)
+    const df = run.combat.player.statuses.dragonforce || 0;
+    if (df > 0) atk = Math.floor(atk * (1 + 0.15 * Math.min(2, df)));
+    // 主题:「三头六臂」——攻击牌伤害提升(每层 +2)
+    if ((run.combat.player.statuses.sixarms || 0) > 0) atk += run.combat.player.statuses.sixarms * 2;
     if (statusOf(run.combat.player, 'weak') > 0) atk = Math.floor(atk * 0.75);
     if (opts && opts.firstAttack) atk += relicVal(run, 'firstAttackBonus');
     if (target) {
       if (target.isElite) atk = Math.floor(atk * (1 + relicSumDiscount(run, 'eliteDmgMult')));
       if (target.isBoss) atk = Math.floor(atk * (1 + relicSumDiscount(run, 'bossDmgMult')));
       if (statusOf(target, 'vuln') > 0) atk = Math.floor(atk * 1.5);
+      // 主题:弱点(阴阳眼等效果揭示)
+      if (statusOf(target, 'weakness') > 0) atk = Math.floor(atk * 1.5);
+      // 主题:咒力护甲(减伤)
+      if (statusOf(target, 'wei') > 0) atk = Math.floor(atk * 0.65);
     }
     return Math.max(0, atk);
+  }
+  // 主题:污染层数带来的额外伤害(设上限,避免数值失控)
+  function curseDamageBonus(run) {
+    const t = themeOf(run);
+    if (!t || !t.curseDmg) return 0;
+    return Math.min(t.curseDmg * 6, (run.player.curse || 0) * t.curseDmg);
   }
   function relicSumDiscount(run, key) {
     let v = 0;
@@ -155,6 +276,12 @@
   function calcEnemyAttack(run, e, base) {
     let atk = base + statusOf(e, 'str');
     if (statusOf(e, 'weak') > 0) atk = Math.floor(atk * 0.75);
+    // 主题:「镇压」使敌人造成的伤害降低
+    if (statusOf(e, 'seal') > 0) atk = Math.floor(atk * 0.75);
+    // 主题:玩家的弱点被看穿
+    if (statusOf(run.combat.player, 'weakness') > 0) atk = Math.floor(atk * 1.35);
+    // 主题:魔女之香——灾祸闻香而来,敌人的攻击更加凶暴
+    if (statusOf(run.combat.player, 'witchscent') > 0) atk = Math.floor(atk * 1.25);
     if (statusOf(run.combat.player, 'vuln') > 0) atk = Math.floor(atk * 1.5);
     return Math.max(0, atk);
   }
@@ -183,6 +310,13 @@
   function damagePlayer(run, amount, useBlock) {
     const p = run.combat ? run.combat.player : null;
     let rem = amount;
+    // 主题:领域屏障抵挡一次伤害
+    if (p && (p.statuses.barrier || 0) > 0 && rem > 0) {
+      addStatus(run, p, 'barrier', -1, true);
+      pushEv(run, { t: 'fx', fx: 'shield' });
+      pushEv(run, { t: 'text', msg: '领域屏障抵消了这次伤害' });
+      return 0;
+    }
     if (useBlock && p && p.block > 0) {
       const absorbed = Math.min(p.block, rem);
       p.block -= absorbed;
@@ -199,6 +333,29 @@
 
   function checkPlayerDeath(run) {
     if (run.player.hp > 0) return;
+    // 主题:死亡回归——倒回至战斗开始时的生命(基础 1 次,遗物/卡牌可增加)
+    if (run.combat && run.combat.rbdHp !== undefined) {
+      const cb = run.combat;
+      const maxUse = 1 + relicVal(run, 'rbdCharges');
+      let used = false;
+      if ((cb.rbdUsed || 0) < maxUse) { cb.rbdUsed = (cb.rbdUsed || 0) + 1; used = true; }
+      else if (statusOf(cb.player, 'rewind') > 0) { addStatus(run, cb.player, 'rewind', -1, true); used = true; }
+      if (used) {
+        run.player.hp = Math.max(1, cb.rbdHp);
+        for (const k of ['vuln', 'weak', 'frail']) delete cb.player.statuses[k];
+        addStatus(run, cb.player, 'witchscent', 1, true);
+        pushEv(run, { t: 'fx', fx: 'aoe' });
+        pushEv(run, { t: 'text', msg: '「死亡回归」——时间倒回了存档点!' });
+        return;
+      }
+    }
+    // 主题:活尸——本场战斗内首次致命伤害不死
+    if (run.combat && statusOf(run.combat.player, 'undying') > 0) {
+      delete run.combat.player.statuses.undying;
+      run.player.hp = Math.max(1, Math.floor(run.player.maxHp * 0.4));
+      pushEv(run, { t: 'text', msg: '活尸之躯撑住了这一击,你拒绝死去!' });
+      return;
+    }
     // 不死鸟之血:战斗内一次重生(优先于遗物)
     if (run.combat && statusOf(run.combat.player, 'demonRevive') > 0) {
       delete run.combat.player.statuses.demonRevive;
@@ -234,6 +391,14 @@
           c.kills = (c.kills || 0) + 1;
           const d = enemyDef(e);
           pushEv(run, { t: 'death', uid: e.uid });
+          // 主题:暴食的权能——吞噬倒下的敌人
+          const glut = c.player.statuses.gluttony || 0;
+          if (glut > 0) {
+            run.player.hp = Math.min(run.player.maxHp, run.player.hp + glut);
+            addStatus(run, c.player, 'str', 1, true);
+            pushEv(run, { t: 'heal', who: 'player', v: glut });
+            pushEv(run, { t: 'text', msg: '暴食:吞噬了倒下的敌人' });
+          }
           if (statusOf(e, 'corpseExp') > 0) {
             const dmg = e.maxHp;
             for (const o of c.enemies) {
@@ -268,19 +433,32 @@
       // ---- 攻击 ----
       attack(t, o) {
         const target = resolveT(t) || living()[0];
+        const view = cardView(run, inst);
         if (target && !opts.echo) pushEv(run, { t: 'fx', fx: 'slash', uid: target.uid });
-        const times = (o && o.times) || (cardView(run, inst).hits ? cardView(run, inst).hits : 1) || 1;
+        const times = (o && o.times) || (view.hits ? view.hits : 1) || 1;
         let total = 0, killed = false;
         const first = !c.firstAttackUsed;
         c.firstAttackUsed = true;
         const bonus = c.pendingAttackBonus; c.pendingAttackBonus = 0;
-        let base = (cardView(run, inst).dmg || 0) + (c.permBoosts[inst.uid] || 0);
+        let base = (view.dmg || 0) + (c.permBoosts[inst.uid] || 0);
         if (inst.id === 'shiv') base += c.shivBonus || 0;
         if (inst.id === 'imp') base += c.impBonus || 0;
         for (let i = 0; i < times; i++) {
           if (!target || target.dead) break;
-          const amt = calcPlayerAttack(run, base, target, { bonus, firstAttack: first && i === 0 });
+          const amt = calcPlayerAttack(run, base, target, {
+            bonus, firstAttack: first && i === 0,
+            ce: !!view.ceScale, curseDmg: curseDamageBonus(run)
+          });
           total += hitEnemy(run, target, amt);
+          if (target.dead) killed = true;
+        }
+        // 黑闪:暴击,追加等量伤害并积攒咒力
+        if (view.tech && target && !target.dead && total > 0 && RNG.chance(run, blackFlashChance(run))) {
+          hitEnemy(run, target, total, { noRetaliate: true });
+          ctx.gainCe(3);
+          pushEv(run, { t: 'fx', fx: 'blackflash', uid: target.uid });
+          pushEv(run, { t: 'text', msg: '黑闪!' });
+          total *= 2;
           if (target.dead) killed = true;
         }
         // 剧毒烟雾
@@ -290,14 +468,18 @@
         return killed;
       },
       attackAll(o) {
+        const view = cardView(run, inst);
         const times = (o && o.times) || 1;
         let total = 0;
         if (!opts.echo) pushEv(run, { t: 'fx', fx: 'aoe' });
         const first = !c.firstAttackUsed;
-        const base = (cardView(run, inst).dmg || 0) + (c.permBoosts[inst.uid] || 0);
+        const base = (view.dmg || 0) + (c.permBoosts[inst.uid] || 0);
         for (let i = 0; i < times; i++) {
           for (const e of living()) {
-            const amt = calcPlayerAttack(run, base, e, { firstAttack: first && i === 0 && e === living()[0] });
+            const amt = calcPlayerAttack(run, base, e, {
+              firstAttack: first && i === 0 && e === living()[0],
+              ce: !!view.ceScale, curseDmg: curseDamageBonus(run)
+            });
             total += hitEnemy(run, e, amt);
           }
         }
@@ -308,17 +490,21 @@
         return total;
       },
       attackRandom(o) {
-        const times = (o && o.times) || 1;
+        o = o || {};
+        const view = cardView(run, inst);
+        const times = o.times || 1;
         let total = 0;
         if (!opts.echo) pushEv(run, { t: 'fx', fx: 'multi' });
         const first = !c.firstAttackUsed;
-        const base = (cardView(run, inst).dmg || 0) + (c.permBoosts[inst.uid] || 0);
+        const base = o.dmg !== undefined ? o.dmg : ((view.dmg || 0) + (c.permBoosts[inst.uid] || 0));
         c.firstAttackUsed = true;
         for (let i = 0; i < times; i++) {
           const alive = living();
           if (!alive.length) break;
           const target = RNG.pick(run, alive);
-          const amt = calcPlayerAttack(run, base, target, { firstAttack: first && i === 0 });
+          const amt = calcPlayerAttack(run, base, target, {
+            firstAttack: first && i === 0, curseDmg: curseDamageBonus(run)
+          });
           total += hitEnemy(run, target, amt);
         }
         return total;
@@ -483,9 +669,286 @@
         const target = resolveT(t);
         if (target && !target.dead) hitEnemy(run, target, n, { noRetaliate: true });
         sweepDead(run);
+      },
+
+      /* ================= 联动主题:通用 ================= */
+      themeId() { const t = themeOf(run); return t ? t.id : null; },
+      randomGhost() { return RNG.pick(run, THEMES.ghostPool); },
+      playedThisTurn(id) { return (c.playedIds || []).includes(id); },
+      targetHasDebuff(t) {
+        const target = resolveT(t);
+        if (!target) return false;
+        return ['vuln', 'weak', 'frail', 'poison', 'seal', 'sealAction', 'scorch', 'weakness']
+          .some(k => statusOf(target, k) > 0);
+      },
+      mutateBonus() { return c.mutateBonus || 0; },
+      addWeakness(t, n) {
+        const target = resolveT(t);
+        if (!target || target.dead) return;
+        addStatus(run, target, 'weakness', n === undefined ? 2 : n);
+        pushEv(run, { t: 'text', msg: target.name + ' 的弱点被看穿了!' });
+      },
+      dealMagicAll(n) {
+        for (const e of living()) hitEnemy(run, e, n, { noRetaliate: true });
+        sweepDead(run);
+      },
+      /* ================= 联动主题二批:通用 ================= */
+      cardsPlayed() { return c.combatCards || 0; },
+      allies() { return (run.player.allies || []).length; },
+      selfStatus(key) { return statusOf(c.player, key); },
+      roll() { return RNG.float(run); },
+      randInt(a, b) { return RNG.int(run, a, b); },
+      chance(p) { return RNG.chance(run, p); },
+      cleanseDebuffs() {
+        for (const k of ['vuln', 'weak', 'frail', 'witchscent']) delete c.player.statuses[k];
+      },
+      randomSpirit() {
+        const pool = THEMES.spiritPool || [];
+        return pool.length ? RNG.pick(run, pool) : null;
+      },
+      redline() {
+        const t = themeOf(run);
+        if (!t || !t.redline) return -1;
+        return t.redline + relicVal(run, 'redlinePlus');
+      },
+      /* ---- 奥特曼:光能 ---- */
+      light() { return c.light ? c.light.val : 0; },
+      lightMax() { return c.light ? c.light.max : 0; },
+      gainLight(n) {
+        if (!c.light || n <= 0) return;
+        const before = c.light.val;
+        c.light.val = Math.min(c.light.max, c.light.val + n);
+        if (c.light.val !== before) pushEv(run, { t: 'status', who: 'player', key: 'light', v: c.light.val });
+      },
+      spendLight(n) {
+        if (!c.light || n <= 0) return 0;
+        const use = Math.min(c.light.val, n);
+        c.light.val -= use;
+        if (use > 0) {
+          pushEv(run, { t: 'status', who: 'player', key: 'light', v: c.light.val });
+          if ((c.player.statuses.plasmaspark || 0) > 0) ctx.dealMagicAll(use);
+        }
+        return use;
+      },
+      spendLightAll() { return ctx.spendLight(c.light ? c.light.val : 0); },
+      /* ---- 神秘复苏:鬼 / 魂火 / 阴阳眼 ---- */
+      setGhost(id, power) {
+        const d = CARDS.get(id);
+        if (!d) return;
+        const p = power !== undefined ? power : c.player.statuses.ghostPower || 1;
+        c.player.ghostKey = id;
+        c.player.ghostName = d.name;
+        c.player.statuses.ghostPower = p;
+        c.ghostTriggered = 0;
+        pushEv(run, { t: 'text', msg: '鬼物附身:' + d.name + (p > 1 ? ' · 强度 ' + p : '') });
+        pushEv(run, { t: 'status', who: 'player', key: 'ghostPower', v: p });
+      },
+      ghostName() { return c.player.ghostName || ''; },
+      addSoulfire(n) {
+        if (n <= 0) return;
+        addStatus(run, c.player, 'soulfire', n, true);
+      },
+      soulfire() { return statusOf(c.player, 'soulfire'); },
+      spendSoulfire(n) {
+        const have = statusOf(c.player, 'soulfire');
+        const use = Math.min(have, n);
+        if (use > 0) addStatus(run, c.player, 'soulfire', -use, true);
+        return use;
+      },
+      triggerGhost() { if (c.player.ghostName) ghostTrigger(run, ctx); },
+      addEye(n) {
+        const mult = owned(run, 'mysteye') ? 1.5 : 1;
+        addStatus(run, c.player, 'eye', Math.max(1, Math.round(n * mult)), true);
+        if (statusOf(c.player, 'eye') >= EYE_MAX) ghostEyeBurst(run);
+      },
+      eye() { return statusOf(c.player, 'eye'); },
+      /* ---- 咒术回战:咒力 / 领域 / 咒术 ---- */
+      ce() { return c.ce || 0; },
+      gainCe(n) {
+        if (n <= 0) return;
+        const max = ceMax(run);
+        const before = c.ce || 0;
+        c.ce = Math.min(max, before + n);
+        if (c.ce !== before) pushEv(run, { t: 'status', who: 'player', key: 'ce', v: c.ce });
+      },
+      spendCe(n) {
+        const use = Math.min(c.ce || 0, n);
+        c.ce = (c.ce || 0) - use;
+        pushEv(run, { t: 'status', who: 'player', key: 'ce', v: c.ce });
+        return use;
+      },
+      spendCeAll() {
+        const n = c.ce || 0;
+        c.ce = 0;
+        if (n > 0) pushEv(run, { t: 'status', who: 'player', key: 'ce', v: 0 });
+        return n;
+      },
+      addField(n) { addField(run, n); },
+      modifyField(n) { addField(run, n); },
+      field() { return c.field ? c.field.val : 0; },
+      fieldMax() { return c.field ? c.field.max : 0; },
+      setCostDelta(n, count) {
+        c.costDelta = { n: n, count: count || 1 };
+        pushEv(run, { t: 'text', msg: '术式顺转:下一张咒术牌费用 ' + n });
       }
     };
     return ctx;
+  }
+
+  /* ================= 联动主题:结算辅助 ================= */
+  const EYE_MAX = 10;
+
+  function ceMax(run) {
+    let m = 12;
+    if (owned(run, 'jjkfinger')) m += 5;
+    return m;
+  }
+
+  // 黑闪几率:基础 25%,「六眼」可提升
+  function blackFlashChance(run) {
+    const c = run.combat;
+    if (!c) return 0;
+    return Math.min(0.9, 0.25 + (c.player.statuses.sixEyes || 0) / 100);
+  }
+
+  // 「鬼」触发:每当你打出一张牌
+  function ghostTrigger(run, ctx) {
+    const c = run.combat;
+    if (!c || !c.player.ghostName) return;
+    const power = c.player.statuses.ghostPower || 0;
+    if (power <= 0) return;
+    switch (c.player.ghostKey) {
+      case 'mn_mirrorghost':
+        gainPlayerBlock(run, power);
+        break;
+      case 'mn_hangghost':
+        ctx.attackRandom({ dmg: power, times: 1 });
+        break;
+      case 'mn_bloodghost':
+        ctx.heal(power);
+        break;
+      case 'mn_ghostking':
+        ctx.dealMagicAll(power);
+        break;
+      /* 从零开始的异世界:精灵(打出技能牌时触发,见 playCard 的门控) */
+      case 'rz_sp_ice':
+        ctx.attackRandom({ dmg: power, times: 1 });
+        break;
+      case 'rz_sp_shield':
+        gainPlayerBlock(run, power);
+        break;
+      case 'rz_sp_heal':
+        ctx.heal(power);
+        break;
+      case 'rz_sp_wind':
+        ctx.dealMagicAll(power);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // 阴阳眼开眼:消耗全部层数,造成爆发伤害与永久力量
+  function ghostEyeBurst(run) {
+    const c = run.combat;
+    if (!c) return;
+    const n = statusOf(c.player, 'eye');
+    addStatus(run, c.player, 'eye', -n, true);
+    const dmg = n * 3 + (owned(run, 'mystreverse') ? 15 : 0);
+    for (const e of c.enemies.filter(x => !x.dead)) hitEnemy(run, e, dmg, { noRetaliate: true });
+    pushEv(run, { t: 'fx', fx: 'aoe' });
+    pushEv(run, { t: 'text', msg: '阴阳眼开眼!爆发 ' + dmg + ' 点伤害' });
+    const str = Math.max(1, Math.floor(n / 4));
+    addStatus(run, c.player, 'str', str, true);
+    if (!owned(run, 'mystreverse')) {
+      const loss = 4;
+      c.hpLostThisTurn = (c.hpLostThisTurn || 0) + loss;
+      run.player.hp = Math.max(1, run.player.hp - loss);
+      pushEv(run, { t: 'dmg', who: 'player', v: loss, self: true });
+      pushEv(run, { t: 'text', msg: '开眼反噬:失去 ' + loss + ' 点生命' });
+    }
+    sweepDead(run);
+  }
+
+  // 镜域/领域之值:满值反噬并重置
+  /* ================= 联动伙伴:行动上下文 ================= */
+  function makeAllyCtx(run) {
+    const c = run.combat;
+    const living = () => (c ? c.enemies.filter(e => !e.dead) : []);
+    return {
+      block(n) { if (n > 0) gainPlayerBlock(run, n); },
+      heal(n) { if (n > 0) run.player.hp = Math.min(run.player.maxHp, run.player.hp + n); },
+      dmgRandom(n) {
+        const alive = living();
+        if (n <= 0 || !alive.length) return;
+        hitEnemy(run, RNG.pick(run, alive), n, { noRetaliate: true });
+        sweepDead(run);
+      },
+      dmgAll(n) {
+        if (n <= 0 || !living().length) return;
+        for (const e of living()) hitEnemy(run, e, n, { noRetaliate: true });
+        sweepDead(run);
+      },
+      vulnRandom(n) {
+        const alive = living();
+        if (n <= 0 || !alive.length) return;
+        addStatus(run, RNG.pick(run, alive), 'vuln', n);
+      },
+      str(n) { if (n > 0) addStatus(run, c.player, 'str', n, true); },
+      barrier(n) { if (n > 0) addStatus(run, c.player, 'barrier', n, true); },
+      light(n) { if (c && c.light && n > 0) c.light.val = Math.min(c.light.max, c.light.val + n); },
+      cudgel(n) { if (n > 0) addStatus(run, c.player, 'cudgel', n, true); },
+      ce(n) { if (n > 0) c.ce = Math.min(ceMax(run), (c.ce || 0) + n); },
+      field(n) { addField(run, n); },
+      gold(n) { run.player.gold = Math.max(0, run.player.gold + n); },
+      token(id, n) {
+        for (let i = 0; i < n; i++) {
+          if (!c || c.hand.length >= 10) break;
+          c.hand.push({ id, up: 0, uid: uid() });
+        }
+      },
+      contractSpirit() {
+        if (!c || c.player.ghostName || !THEMES.spiritPool || !THEMES.spiritPool.length) return;
+        const sid = RNG.pick(run, THEMES.spiritPool);
+        c.player.ghostKey = sid;
+        c.player.ghostName = CARDS.get(sid) ? CARDS.get(sid).name : '精灵';
+        c.player.statuses.ghostPower = (THEMES.spiritPower && THEMES.spiritPower[sid]) || 1;
+        pushEv(run, { t: 'text', msg: '碧翠丝为你缔结了「' + c.player.ghostName + '」' });
+      }
+    };
+  }
+
+  function addField(run, n) {
+    const c = run.combat;
+    if (!c || !c.field || !n) return;
+    c.field.val = Math.max(0, c.field.val + n);
+    pushEv(run, { t: 'status', who: 'player', key: 'field', v: c.field.val });
+    if (c.field.val >= c.field.max) {
+      c.field.val = 0;
+      if (owned(run, 'jjkexpansion')) {
+        pushEv(run, { t: 'text', msg: '领域结晶稳定了结界,你安然无恙' });
+        return;
+      }
+      // 结界护佑:抵消一次反噬
+      if ((run.wardCharges || 0) > 0) {
+        run.wardCharges -= 1;
+        pushEv(run, { t: 'text', msg: '结界护佑抵消了这次反噬(剩余 ' + run.wardCharges + ' 层)' });
+        return;
+      }
+      const dmg = 2 + 2 * run.act;
+      damagePlayer(run, dmg, false);
+      pushEv(run, { t: 'fx', fx: 'aoe' });
+      pushEv(run, { t: 'text', msg: '领域反噬!你失去 ' + dmg + ' 点生命' });
+      for (const e of c.enemies.filter(x => !x.dead)) addStatus(run, e, 'str', 2);
+      sweepDead(run);
+    }
+  }
+
+  function fieldTick(run) {
+    const c = run.combat;
+    if (!c || !c.field) return;
+    const inc = 1 + statusOf(c.player, 'fieldBoost');
+    addField(run, inc);
   }
 
   function gainPlayerBlock(run, amount) {
@@ -594,6 +1057,21 @@
         if (e.dead) return;
         e.hp = clamp(e.hp + n, 0, e.maxHp);
         pushEv(run, { t: 'heal', who: 'enemy', uid: e.uid, v: n });
+      },
+      /* 主题专用:调整领域/镜域之值 */
+      modifyField(n) { addField(run, n); },
+      /* 主题专用:提升自身最大生命(画皮鬼 / 真人) */
+      buffSelfMaxHp(n) {
+        if (e.dead) return;
+        e.maxHp += n;
+        e.hp += n;
+        pushEv(run, { t: 'heal', who: 'enemy', uid: e.uid, v: n });
+        pushEv(run, { t: 'text', msg: e.name + ' 的生命上限提升到 ' + e.maxHp });
+      },
+      /* 主题专用:看穿玩家弱点(使玩家受到的伤害提高) */
+      revealWeakness() {
+        if (statusOf(c.player, 'weakness') > 0) return;
+        addStatus(run, c.player, 'weakness', 2, true);
       }
     };
   }
@@ -607,8 +1085,12 @@
 
   /* ---------- 回合流程 ---------- */
   function startCombat(run, encIds, kind) {
+    const theme = themeOf(run);
     const scale = run.act > 3 ? run.act - 2 : 1;
-    const enemies = encIds.map(id => spawnEnemy(run, id, scale));
+    // 镜域第 2/3 段的敌人强度按段位略微上调
+    let bossScale = scale;
+    if (theme && run.act > 1 && run.act <= theme.acts.length) bossScale = scale * (1 + 0.18 * (run.act - 1));
+    const enemies = encIds.map(id => spawnEnemy(run, id, bossScale));
     const deckCopy = run.player.deck.map(x => ({ id: x.id, up: x.up, uid: uid() }));
     run.combat = {
       kind, turn: 0, over: false, won: false,
@@ -617,7 +1099,12 @@
       player: { block: 0, statuses: {}, energy: 0, maxEnergy: 3 + relicVal(run, 'energyBonus') },
       hpLostThisTurn: 0, permBoosts: {}, shivBonus: 0, impBonus: 0, kills: 0,
       firstAttackUsed: false, firstSkillUsed: false, pendingAttackBonus: 0,
-      pending: null, cardsPlayed: 0
+      pending: null, cardsPlayed: 0, playedIds: [], techniqueUsed: false,
+      combatCards: 0, ce: 0, mutateBonus: 0, costDelta: null, ghostTriggered: 0,
+      field: theme ? { val: 0, max: theme.fieldMax || 10, label: theme.fieldLabel || '镜域' } : null,
+      light: (theme && theme.light) ? { val: theme.light.start, max: theme.light.max + relicVal(run, 'lightMaxBonus') } : null,
+      rbdHp: (theme && theme.deathRewind) ? run.player.hp : undefined,
+      rbdUsed: 0
     };
     run.screen = 'combat';
     // 先进入第 1 回合(抽牌、充能),再结算开局遗物,避免格挡被回合开始清空
@@ -626,9 +1113,38 @@
     for (const e of enemies) e.move = pickEnemyMove(run, e);
     if (kind === 'boss') pushEv(run, { t: 'fx', fx: 'boss', name: enemies[0].name });
     const c = run.combat;
+    // 主题开局:镜域之值 / 咒力 / 鬼 / 领域屏障
+    if (theme) {
+      if (c.field) c.field.val = Math.min(c.field.max - 1, Math.max(0, run.player.curse || 0));
+      if (owned(run, 'mystmirror')) addStatus(run, c.player, 'soulfire', 3, true);
+      if (owned(run, 'mystpagoda')) { for (const e of enemies) addStatus(run, e, 'seal', 1); }
+      if (owned(run, 'jjkcore')) { c.ce = Math.min(ceMax(run), c.ce + 3); if (c.field) c.field.val = Math.min(c.field.max - 1, c.field.val + 2); }
+      if (owned(run, 'jjkglass')) c.ce = Math.min(ceMax(run), c.ce + 1);
+      if (owned(run, 'jjkfinger')) c.ce = Math.min(ceMax(run), c.ce + 2);
+      if (owned(run, 'jjkmask')) addStatus(run, c.player, 'barrier', 1, true);
+      if (owned(run, 'mystbell') && THEMES.ghostPool && THEMES.ghostPool.length) {
+        const gid = RNG.pick(run, THEMES.ghostPool);
+        c.player.ghostKey = gid;
+        c.player.ghostName = CARDS.get(gid).name;
+        c.player.statuses.ghostPower = THEMES.ghostPower[gid] || 1;
+      }
+      if (owned(run, 'jjkteach') && c.hand.length < 10) c.hand.push({ id: 'jj_dog', up: 0, uid: uid() });
+      /* ---- 联动主题二批:开局遗物 ---- */
+      if (owned(run, 'rz_gospel') && THEMES.spiritPool && THEMES.spiritPool.length) {
+        const sid = RNG.pick(run, THEMES.spiritPool);
+        c.player.ghostKey = sid;
+        c.player.ghostName = CARDS.get(sid) ? CARDS.get(sid).name : '精灵';
+        c.player.statuses.ghostPower = (THEMES.spiritPower && THEMES.spiritPower[sid]) || 1;
+      }
+      if (owned(run, 'xy_cudgel')) addStatus(run, c.player, 'cudgel', 3, true);
+      if (owned(run, 'xy_hairbox') && c.hand.length < 10) c.hand.push({ id: 'xy_clone', up: 0, uid: uid() });
+      if (owned(run, 'ft_emblem')) addStatus(run, c.player, 'dragonforce', 2, true);
+      pushEv(run, { t: 'text', msg: theme.name + ' · ' + (themeActOf(run) ? themeActOf(run).name : '镜域') });
+    }
     if (relicVal(run, 'strStart')) addStatus(run, c.player, 'str', relicVal(run, 'strStart'), true);
     if (relicVal(run, 'dexStart')) addStatus(run, c.player, 'dex', relicVal(run, 'dexStart'), true);
-    if (owned(run, 'etchedskull')) gainPlayerBlock(run, 5);
+    const bs = relicVal(run, 'blockStart');
+    if (bs) gainPlayerBlock(run, bs);
     if (owned(run, 'thornscrown')) addStatus(run, c.player, 'thorns', 3, true);
     if (owned(run, 'sacredidol')) { addStatus(run, c.player, 'str', 1, true); addStatus(run, c.player, 'dex', 1, true); }
     if (owned(run, 'gamblerdice') && RNG.chance(run, 0.5)) { c.player.maxEnergy += 1; c.player.energy += 1; pushEv(run, { t: 'text', msg: '赌徒骰子:能量上限+1!' }); }
@@ -642,6 +1158,11 @@
         pick._tempUp = true;
       }
     }
+    // 主题:伙伴的战斗开始效果
+    for (const aid of (run.player.allies || [])) {
+      const d = THEMES.allyMap && THEMES.allyMap[aid];
+      if (d && d.combatStart) d.combatStart(makeAllyCtx(run));
+    }
   }
 
   function startPlayerTurn(run, first) {
@@ -651,10 +1172,41 @@
     c.firstAttackUsed = false;
     c.firstSkillUsed = false;
     c.cardsPlayed = 0;
+    c.playedIds = [];
+    c.ghostTriggered = 0;
     // 路障外清空格挡
     if ((c.player.statuses.barricade || 0) < 1) c.player.block = 0;
     // 能量重置
     c.player.energy = c.player.maxEnergy;
+    // ---- 联动主题:每回合开始 ----
+    c.costDelta = null;
+    c.techniqueUsed = false;
+    if (c.field) c.field.val = Math.max(0, c.field.val);
+    if (owned(run, 'jjkfragment')) c.ce = Math.min(ceMax(run), (c.ce || 0) + 1);
+    const six = statusOf(c.player, 'sixEyes');
+    if (six > 0) c.ce = Math.min(ceMax(run), (c.ce || 0) + (six >= 25 ? 3 : 2));
+    // ---- 联动主题二批:回合开始 ----
+    if (c.light) {
+      const et = c.player.statuses.eternal || 0;
+      if (et >= 2) c.light.val = Math.min(c.light.max, c.light.val + 1);
+      if (owned(run, 'ul_spark')) c.light.val = Math.min(c.light.max, c.light.val + 1);
+    }
+    if (owned(run, 'xy_goldhoop')) addStatus(run, c.player, 'cudgel', 1, true);
+    const majesty = statusOf(c.player, 'majesty');
+    if (majesty > 0) addStatus(run, c.player, 'cudgel', 2 * majesty, true);
+    const unseenDmg = statusOf(c.player, 'unseen');
+    if (unseenDmg > 0) {
+      const aliveU = c.enemies.filter(e => !e.dead);
+      if (aliveU.length) {
+        const tgt = RNG.pick(run, aliveU);
+        hitEnemy(run, tgt, unseenDmg, { noRetaliate: true });
+        pushEv(run, { t: 'text', msg: '看不见的手抓向了 ' + tgt.name });
+        sweepDead(run);
+        if (c.over) { finishCombat(run); return; }
+      }
+    }
+    const scales = statusOf(c.player, 'scales');
+    if (scales > 0) gainPlayerBlock(run, scales);
     // 玩家中毒结算(无视格挡)
     const pois = statusOf(c.player, 'poison');
     if (pois > 0) {
@@ -684,10 +1236,18 @@
       pushEv(run, { t: 'energy', v: c.player.energy });
       checkPlayerDeath(run);
     }
+    // 主题:伙伴的回合效果 + 身外身法
+    for (const aid of (run.player.allies || [])) {
+      const d = THEMES.allyMap && THEMES.allyMap[aid];
+      if (d && d.turnStart) d.turnStart(makeAllyCtx(run));
+    }
+    if ((c.player.statuses.monkeys || 0) > 0 && c.hand.length < 10) {
+      c.hand.push({ id: 'xy_clone', up: 0, uid: uid() });
+    }
     // 抽牌
     let n = 5 + (c.player.statuses.drawNext || 0);
     if (c.player.statuses.drawNext) delete c.player.statuses.drawNext;
-    if (first && owned(run, 'snaking')) n += 2;
+    if (first) n += relicVal(run, 'drawFirstTurn');
     // 固有牌优先
     const innate = c.draw.filter(x => CARDS.view(tempView(x)).innate);
     if (innate.length) {
@@ -716,12 +1276,53 @@
       checkPlayerDeath(run);
       if (run.screen === 'gameover') return;
     }
+    // ---- 联动主题:回合结束 ----
+    const turnAoe = (statusOf(c.player, 'kitchen') || 0) + (statusOf(c.player, 'law') || 0) + (statusOf(c.player, 'havoc') || 0);
+    if (turnAoe > 0) {
+      for (const e of c.enemies.filter(x => !x.dead)) hitEnemy(run, e, turnAoe, { noRetaliate: true });
+      sweepDead(run);
+      if (c.over) { finishCombat(run); return; }
+    }
+    // 主题:光能消耗;归零则能量枯竭
+    if (c.light) {
+      if (owned(run, 'ul_tower') || (c.player.statuses.eternal || 0) > 0) {
+        // 永恒之辉/等离子火花塔:光能不消耗
+      } else {
+        c.light.val = Math.max(0, c.light.val - 1);
+        pushEv(run, { t: 'status', who: 'player', key: 'light', v: c.light.val });
+        if (c.light.val <= 0) {
+          const drain = 2 + run.act;
+          run.player.hp = Math.max(0, run.player.hp - drain);
+          c.hpLostThisTurn += drain;
+          pushEv(run, { t: 'dmg', who: 'player', v: drain, self: true });
+          pushEv(run, { t: 'text', msg: '光能耗竭!彩色计时器熄灭,失去 ' + drain + ' 点生命' });
+          checkPlayerDeath(run);
+          if (run.screen === 'gameover') return;
+        }
+      }
+    }
+    // 主题:燃烧生命——回合结束失去等同层数的生命
+    const burnLife = statusOf(c.player, 'burnlife');
+    if (burnLife > 0) {
+      run.player.hp = Math.max(0, run.player.hp - burnLife);
+      c.hpLostThisTurn += burnLife;
+      pushEv(run, { t: 'dmg', who: 'player', v: burnLife, self: true });
+      checkPlayerDeath(run);
+      if (run.screen === 'gameover') return;
+    }
+    c.mutateBonus = 0;
+    fieldTick(run);
+    if (run.screen === 'gameover') return;
+    if (c.over) { finishCombat(run); return; }
     // 手中状态/诅咒伤害
     let burnDmg = 0;
     for (const h of c.hand) {
       if (h.id === 'burn') burnDmg += 2;
       if (h.id === 'decay') burnDmg += 3;
+      if (h.id === 'mn_burnghost') burnDmg += 4;
     }
+    const scorch = statusOf(c.player, 'scorch');
+    if (scorch > 0) { burnDmg += scorch; addStatus(run, c.player, 'scorch', -1, true); }
     if (burnDmg > 0) {
       run.player.hp = Math.max(0, run.player.hp - burnDmg);
       c.hpLostThisTurn += burnDmg;
@@ -743,6 +1344,13 @@
     if (c.player.statuses.tempStr) delete c.player.statuses.tempStr;
     // 减益递减
     for (const k of ['vuln', 'weak', 'frail']) {
+      if ((c.player.statuses[k] || 0) > 0) addStatus(run, c.player, k, -1, true);
+    }
+    if ((c.player.statuses.weakness || 0) > 0) addStatus(run, c.player, 'weakness', -1, true);
+    if ((c.player.statuses.seal || 0) > 0) addStatus(run, c.player, 'seal', -1, true);
+    // 主题:龙之力遗物——「龙之意志」不衰减
+    const decayKeys = owned(run, 'ft_eternal') ? ['witchscent'] : ['witchscent', 'dragonforce'];
+    for (const k of decayKeys) {
       if ((c.player.statuses[k] || 0) > 0) addStatus(run, c.player, k, -1, true);
     }
     // 敌人回合
@@ -768,6 +1376,13 @@
     }
     for (const e of c.enemies) {
       if (e.dead || run.screen === 'gameover') continue;
+      // 主题:「封锁」使敌人下一回合无法行动
+      const sealAction = statusOf(e, 'sealAction');
+      if (sealAction > 0) {
+        addStatus(run, e, 'sealAction', -1);
+        pushEv(run, { t: 'text', msg: e.name + ' 被封锁了行动' });
+        continue;
+      }
       const d = enemyDef(e);
       const move = d.moves[e.move] || d.moves[Object.keys(d.moves)[0]];
       e._last = e.move;
@@ -794,6 +1409,11 @@
   function finishCombat(run) {
     const c = run.combat;
     if (!c.won) return;
+    // 主题:伙伴的战斗胜利效果
+    for (const aid of (run.player.allies || [])) {
+      const d = THEMES.allyMap && THEMES.allyMap[aid];
+      if (d && d.onVictory) d.onVictory(makeAllyCtx(run));
+    }
     // 奖励
     const rewards = [];
     let gold;
@@ -834,20 +1454,19 @@
 
   /* ================= 牌局外部:奖励/地图/商店等 ================= */
   function randomUnownedRelic(run) {
-    const pool = RELICS.all.filter(id => {
-      const d = RELICS.get(id);
-      if (d.rarity === 'starter') return false;
-      return !owned(run, id);
-    });
+    const pool = relicPoolFor(run);
     if (!pool.length) return null;
     return RNG.pick(run, pool);
   }
 
   function makeRewardCards(run, n) {
     const cls = run.player.cls;
+    const theme = themeOf(run);
     const lucky = owned(run, 'luckylens');
     const out = [];
     const used = new Set();
+    // 主题局:一部分奖励从主题专属卡池中抽取,保证联动牌持续出现
+    const themeQuota = theme ? Math.ceil(n * 0.6) : 0;
     for (let i = 0; i < n; i++) {
       const roll = RNG.float(run);
       let rar;
@@ -856,8 +1475,14 @@
       if (roll < rareP) rar = 'rare';
       else if (roll < rareP + uncP) rar = 'uncommon';
       else rar = 'common';
-      let pool = CARDS.pool(cls, rar).filter(id => !used.has(id));
+      let pool;
+      if (i < themeQuota) {
+        pool = themedCardPool(run, rar).filter(id => !used.has(id));
+        if (!pool.length) pool = themedCardPool(run, null).filter(id => !used.has(id));
+      }
+      if (!pool || !pool.length) pool = CARDS.pool(cls, rar).filter(id => !used.has(id));
       if (!pool.length) pool = CARDS.pool(cls, 'common').filter(id => !used.has(id));
+      if (!pool.length) pool = themedCardPool(run, null).filter(id => !used.has(id));
       if (!pool.length) continue;
       const id = RNG.pick(run, pool);
       used.add(id);
@@ -881,6 +1506,7 @@
           potions: [null, null, null], potionSlots: 3,
           relics: [RELICS.starter(cls)],
           deck: CARDS.starterDeck(cls),
+          allies: [],
           stats: { enemies: 0, bosses: 0, cardsPlayed: 0 }
         },
         combat: null, rewards: null, rewardsClaimed: 0,
@@ -902,12 +1528,128 @@
     get run() { return this._run; },
     setRun(run) { this._run = run; },
 
+    /* ---------- 联动主题开局 ---------- */
+    newThemeRun(themeId, seed) {
+      const theme = THEMES.get(themeId);
+      if (!theme) throw new Error('未知联动主题: ' + themeId);
+      const run = {
+        v: 1, theme: theme.id,
+        seed: seed === undefined ? RNG.newSeed() : seed,
+        cls: theme.cls,
+        act: 1, floorTotal: 0,
+        nodeIndex: null, prevIndex: null, path: [],
+        map: null,
+        player: {
+          cls: theme.cls, hp: theme.startHp, maxHp: theme.startHp, gold: 99,
+          potions: [null, null, null], potionSlots: 3,
+          relics: [theme.starterRelic],
+          deck: theme.starterDeck.map(id => ({ id, up: 0 })),
+          curse: 0,
+          allies: [],
+          stats: { enemies: 0, bosses: 0, cardsPlayed: 0 }
+        },
+        wardCharges: 0,
+        combat: null, rewards: null, rewardsClaimed: 0,
+        shop: null, restDone: false,
+        event: null, eventResult: null,
+        screen: 'map', over: false, endless: false,
+        phoenixUsed: false, removals: 0,
+        stats: { score: 0 }
+      };
+      run.rng = { s: run.seed };
+      run.map = genMap(run);
+      run.evts = [];
+      this._run = run;
+      bumpStats('runs');
+      saveRun(run);
+      return run;
+    },
+
+    // 镜域祭坛 / 结界:走事件界面,提供多分支选择
+    openDomainEvent(run, kind) {
+      const theme = themeOf(run);
+      const pool = ((theme && theme.npcs) || []).filter(n => n.type === kind);
+      const npc = pool.length
+        ? pool[Math.min(run.act - 1, pool.length - 1)] || pool[0]
+        : { name: kind === 'ward' ? '镇魂结界' : '咒物祭坛', art: kind === 'ward' ? '🛡️' : '🩸', text: '' };
+      const A = this.makeEventCtx(run);
+      const self = this;
+      const choices = [];
+      if (kind === 'ward') {
+        choices.push({
+          label: '净化污染(失去少量生命)',
+          hint: '污染 -3,获得 1 层结界护佑',
+          fx() {
+            const loss = Math.min(run.player.hp - 1, 5);
+            if (loss > 0) A.loseHp(loss);
+            run.player.curse = Math.max(0, (run.player.curse || 0) - 3);
+            run.wardCharges = (run.wardCharges || 0) + 1;
+            return `你以 ${loss} 点生命为代价净化了污染。`;
+          }
+        });
+        choices.push({
+          label: '稳固结界(回复生命)',
+          hint: '回复 12 点生命',
+          fx() { A.heal(12); return '结界的力量涌入体内,伤口开始愈合。'; }
+        });
+        choices.push({
+          label: '研究结界(升级卡牌)',
+          hint: '随机升级 1 张牌',
+          fx() { const n = A.upgradeRandom(1); return n ? '你从结界中悟出了新的用法。' : '没有可以升级的牌。'; }
+        });
+      } else {
+        choices.push({
+          label: '献祭血肉(燃烧卡组)',
+          hint: '污染 -3,失去 6 点生命',
+          can() { return run.player.hp > 6; },
+          fx() {
+            A.loseHp(6);
+            run.player.curse = Math.max(0, (run.player.curse || 0) - 3);
+            return '祭坛吞下了你的血。污染退散了一些。';
+          }
+        });
+        choices.push({
+          label: '夺取咒物(贪婪)',
+          hint: '获得 60~90 金币,但污染 +1 并加入 1 张「伤口」',
+          fx() {
+            A.gainGold(A.randInt(60, 90));
+            run.player.curse = (run.player.curse || 0) + 1;
+            A.curse('wound');
+            return '你抓起了祭坛上的东西,掌心多了一道无法愈合的伤口。';
+          }
+        });
+        choices.push({
+          label: '吞下咒胎(力量)',
+          hint: '失去 10 点生命,获得 1 张主题稀有牌',
+          can() { return run.player.hp > 10; },
+          fx() {
+            A.loseHp(10);
+            const ids = themedCardPool(run, 'rare');
+            if (!ids.length) return '咒胎里空空如也。';
+            const id = RNG.pick(run, ids);
+            run.player.deck.push({ id, up: 0 });
+            return '你吞下了它,得到了「' + CARDS.get(id).name + '」。';
+          }
+        });
+      }
+      run.event = {
+        id: 'domain_' + kind,
+        name: npc.name,
+        art: npc.art,
+        text: npc.text || '空气中弥漫着不属于活人的气息。',
+        choices
+      };
+      run.eventResult = null;
+      run.screen = 'event';
+      void self;
+    },
+
     /* ---------- 地图导航 ---------- */
     reachableNodes(run) {
       if (!run.map) return [];
       if (run.nodeIndex === null) return run.map[0].map((_, i) => ({ row: 0, i }));
       const { row, i } = run.nodeIndex;
-      if (row >= ROWS - 1) return [];
+      if (row >= run.map.length - 1) return [];
       return run.map[row][i].edges.map(j => ({ row: row + 1, i: j }));
     },
 
@@ -923,22 +1665,40 @@
       run.floorTotal += 1;
       if (owned(run, 'cornucopia')) { run.player.gold += 10; }
       run.event = null; run.eventResult = null; run.restDone = false; run.rewards = null;
+      // 主题:每进入新一层,镜域污染加深
+      const theme = themeOf(run);
+      if (theme && node.type !== 'ward' && node.type !== 'curse') {
+        run.player.curse = (run.player.curse || 0) + 1;
+      }
       switch (node.type) {
         case 'combat': {
-          const encs = ENEMIES.encounters(Math.min(run.act, 3)).normal;
+          const t = themeEncounterTable(run);
+          const encs = t ? t.normal : ENEMIES.encounters(Math.min(run.act, 3)).normal;
           const enc = RNG.pick(run, encs);
           startCombat(run, enc, 'normal');
           break;
         }
         case 'elite': {
-          const encs = ENEMIES.encounters(Math.min(run.act, 3)).elite;
+          const t = themeEncounterTable(run);
+          const encs = t ? t.elite : ENEMIES.encounters(Math.min(run.act, 3)).elite;
           const enc = RNG.pick(run, encs);
           startCombat(run, enc, 'elite');
           break;
         }
         case 'boss': {
-          const encs = ENEMIES.encounters(Math.min(run.act, 3)).boss;
+          const t = themeEncounterTable(run);
+          const encs = t ? t.boss : ENEMIES.encounters(Math.min(run.act, 3)).boss;
           startCombat(run, encs[0], 'boss');
+          break;
+        }
+        case 'curse': {
+          // 镜域的「咒物祭坛」:以生命或卡组为代价换取力量
+          this.openDomainEvent(run, 'curse');
+          break;
+        }
+        case 'ward': {
+          // 「镇魂结界 / 简易领域」:净化污染、休整或升级
+          this.openDomainEvent(run, 'ward');
           break;
         }
         case 'rest':
@@ -978,6 +1738,13 @@
       let cost = view.cost;
       if (cost === 'X') return 0;
       if (run.combat && !run.combat.firstSkillUsed && view.type === 'skill' && owned(run, 'silkthread') && cost > 0) cost -= 1;
+      // ---- 联动主题 ----
+      if (run.combat && view.tech) {
+        // 每回合第一张咒术牌免费
+        if (!run.combat.techniqueUsed) return 0;
+        const cd = run.combat.costDelta;
+        if (cd && cd.count > 0 && typeof cost === 'number') cost = Math.max(0, cost + cd.n);
+      }
       return cost;
     },
     effectiveView(run, inst) {
@@ -989,7 +1756,9 @@
       const view = this.effectiveView(run, inst);
       let base = (view.dmg || 0) + ((run.combat && run.combat.permBoosts[inst.uid]) || 0);
       if (inst.id === 'shiv' && run.combat) base += run.combat.shivBonus || 0;
-      const amt = calcPlayerAttack(run, base, target || (run.combat && run.combat.enemies.find(e => !e.dead)), {});
+      const amt = calcPlayerAttack(run, base, target || (run.combat && run.combat.enemies.find(e => !e.dead)), {
+        ce: !!view.ceScale, curseDmg: curseDamageBonus(run)
+      });
       return amt;
     },
     calcCardBlock(run, inst) {
@@ -1023,6 +1792,17 @@
       if (view.cost !== 'X') {
         c.player.energy -= this.cardCost(run, inst);
       }
+      // 咒术:记录本回合首张咒术牌(已免费),并消耗「术式顺转」减费
+      if (view.tech) {
+        if (!c.techniqueUsed) {
+          c.techniqueUsed = true;
+          pushEv(run, { t: 'text', msg: '咒术发动 · 首次免费' });
+        } else if (c.costDelta && c.costDelta.count > 0) {
+          c.costDelta.count -= 1;
+          if (c.costDelta.count <= 0) c.costDelta = null;
+        }
+      }
+      // 黑闪预告由 attack 内部结算
       if (view.type === 'skill') c.firstSkillUsed = true;
       // 从手牌移除
       c.hand.splice(handIdx, 1);
@@ -1080,7 +1860,25 @@
         exec(true);
       }
       c.cardsPlayed += 1;
+      c.combatCards = (c.combatCards || 0) + 1;
+      if (!c.playedIds) c.playedIds = [];
+      if (!c.playedIds.includes(inst.id)) c.playedIds.push(inst.id);
       sweepDead(run);
+      // 主题「法天象地」:打出攻击牌获得棍势
+      if ((c.player.statuses.growstaff || 0) > 0 && view.type === 'attack') {
+        addStatus(run, c.player, 'cudgel', c.player.statuses.growstaff, true);
+      }
+      // 主题「鬼 / 精灵」:打出牌触发(精灵仅在打出技能牌时触发)
+      if (c.player.ghostName && run.screen === 'combat') {
+        const gk = c.player.ghostKey || '';
+        const spiritOk = gk.indexOf('rz_') !== 0 || view.type === 'skill';
+        if (spiritOk) {
+          c.ghostTriggered = (c.ghostTriggered || 0) + 1;
+          const extra = (owned(run, 'mystcoffin') && c.ghostTriggered === 1) ? 2 : 1;
+          for (let g = 0; g < extra; g++) ghostTrigger(run, makeCardCtx(run, inst, target, { echo: true }));
+          sweepDead(run);
+        }
+      }
       if (c.over && c.won) finishCombat(run);
       saveRun(run);
       return true;
@@ -1198,9 +1996,34 @@
     },
     leaveReward(run) {
       const isBoss = run.combat && run.combat.kind === 'boss';
+      const theme = themeOf(run);
       run.rewards = null;
       run.combat = null;
       if (isBoss) {
+        if (theme) {
+          // 镜域:打完本段 BOSS 后进入下一段,走完所有段即通关
+          if (run.act >= theme.acts.length && !run.endless) {
+            run.screen = 'victory';
+            run.player.stats.won = true;
+            bumpStats('wins');
+            bumpClassWin(run.cls);
+            Engine.onVictoryScore(run);
+            saveRun(run);
+            return;
+          }
+          run.act += 1;
+          run.nodeIndex = null;
+          run.path = [];
+          run.map = genMap(run);
+          run.player.curse = Math.max(0, (run.player.curse || 0) - 1);
+          const bonus = Math.floor(run.player.maxHp * 0.25);
+          run.player.hp = clamp(run.player.hp + bonus, 0, run.player.maxHp);
+          const nextAct = themeActOf(run);
+          pushEv(run, { t: 'text', msg: '通往下一片镜域:回复 ' + bonus + ' 点生命' + (nextAct ? ' · ' + nextAct.name : '') });
+          run.screen = 'map';
+          saveRun(run);
+          return;
+        }
         if (run.act >= 3 && !run.endless) {
           run.screen = 'victory';
           run.player.stats.won = true;
@@ -1270,6 +2093,16 @@
         if (!it || it.sold || run.player.gold < price) return false;
         run.player.gold -= price;
         this.acquireRelic(run, it.id);
+        it.sold = true;
+      } else if (kind === 'ally') {
+        const it = s.allies && s.allies[idx];
+        const price = this.shopPrice(run, it && it.price);
+        const cap = (GS.THEMES && GS.THEMES.allyCap) || 4;
+        if (!it || it.sold || run.player.gold < price) return false;
+        if ((run.player.allies || []).length >= cap) return false;
+        run.player.gold -= price;
+        if (!run.player.allies) run.player.allies = [];
+        run.player.allies.push(it.id);
         it.sold = true;
       } else if (kind === 'remove') {
         const price = this.removePrice(run);
@@ -1518,17 +2351,26 @@
   /* ================= 商店生成 ================= */
   function genShop(run) {
     const cls = run.player.cls;
+    const themeT = themeOf(run);
     const cards = [];
     const rars = ['common', 'common', 'uncommon', 'uncommon', 'rare'];
     const used = new Set();
     for (const rar of rars) {
-      let pool = CARDS.pool(cls, rar).filter(id => !used.has(id));
-      if (!pool.length) pool = CARDS.pool(cls, 'common').filter(id => !used.has(id));
+      let pool;
+      // 主题局:商店里主题牌与职业牌交替出现
+      if (themeT && RNG.chance(run, 0.6)) pool = themedCardPool(run, rar).filter(id => !used.has(id));
+      if (!pool || !pool.length) pool = CARDS.pool(cls, rar).filter(id => !used.has(id));
+      if (!pool.length) pool = themedCardPool(run, null).filter(id => !used.has(id));
       if (!pool.length) continue;
       const id = RNG.pick(run, pool);
       used.add(id);
       const base = { common: RNG.int(run, 45, 55), uncommon: RNG.int(run, 68, 82), rare: RNG.int(run, 135, 165) }[rar];
       cards.push({ id, price: base, sold: false });
+    }
+    if (themeT) {
+      for (const cid of rollColorless(run, 2)) {
+        cards.push({ id: cid, price: RNG.int(run, 85, 115), sold: false });
+      }
     }
     const potions = [];
     const pUsed = new Set();
@@ -1540,18 +2382,24 @@
       potions.push({ id, price: RNG.int(run, 48, 66), sold: false });
     }
     const relics = [];
-    const rPool = RELICS.all.filter(id => {
-      const d = RELICS.get(id);
-      return d.rarity !== 'starter' && !owned(run, id);
-    });
+    const rPool = relicPoolFor(run);
     RNG.shuffle(run, rPool);
     for (let i = 0; i < 2 && i < rPool.length; i++) {
       const d = RELICS.get(rPool[i]);
       const base = d.rarity === 'rare' ? RNG.int(run, 160, 190) : RNG.int(run, 140, 170);
       relics.push({ id: rPool[i], price: base, sold: false });
     }
+    // 主题局:伙伴货架(限购至 4 名)
+    const allies = [];
+    if (themeT && (run.player.allies || []).length < (GS.THEMES.allyCap || 4)) {
+      const aPool = (themeT.allyDefs || []).filter(a => !(run.player.allies || []).includes(a.id));
+      if (aPool.length) {
+        const d = RNG.pick(run, aPool);
+        allies.push({ id: d.id, price: d.cost, sold: false });
+      }
+    }
     return {
-      cards, potions, relics,
+      cards, potions, relics, allies,
       removeUsed: false, awaitingRemove: false
     };
   }
@@ -1575,6 +2423,9 @@
       if (!raw) return null;
       const run = JSON.parse(raw);
       if (!run || run.v !== 1) return null;
+      // 兼容旧存档:补齐联动主题字段
+      if (run.theme && !THEMES.get(run.theme)) run.theme = null;
+      if (run.theme) { run.player.curse = run.player.curse || 0; run.wardCharges = run.wardCharges || 0; }
       run.evts = [];
       if (!run.path) run.path = [];
       Engine._run = run;
@@ -1621,11 +2472,11 @@
     s.classWins[cls] = (s.classWins[cls] || 0) + 1;
     saveStats(s);
   }
-
   Engine.saveRun = saveRun;
   Engine.loadRun = loadRun;
   Engine.loadStats = loadStats;
   Engine._testStartCombat = startCombat; // 测试钩子
+  Engine._testGenShop = genShop; // 测试钩子
   Engine.bumpStats = bumpStats;
   Engine.onGameOver = function (run) {
     bumpStats('losses');

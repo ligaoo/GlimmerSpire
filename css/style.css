@@ -192,6 +192,131 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 }
 .status-chip.buff { border-color: #7a9a50; color: #b8e89a; }
 .status-chip.debuff { border-color: #9a5060; color: #ffaab8; }
+.status-chip.ghost { border-color: #8a6ad0; color: #d8c0ff; background: rgba(40, 26, 66, .9); }
+.status-chip.ghost.spirit { border-color: #4ac0b0; color: #b0ffe8; background: rgba(14, 56, 50, .9); }
+.status-chip.ce { border-color: #4aa0c0; color: #9ae8ff; background: rgba(16, 40, 56, .9); }
+.status-chip.light {
+  border-color: #c0a040; color: #ffe9a8; background: rgba(56, 42, 12, .9);
+  animation: lightblink 2.4s ease infinite;
+}
+@keyframes lightblink { 0%, 100% { box-shadow: 0 0 4px rgba(255, 200, 80, .25); } 50% { box-shadow: 0 0 12px rgba(255, 170, 60, .6); } }
+.status-chip.light.low {
+  border-color: #ff5050; color: #ffb0b0; background: rgba(70, 14, 14, .95);
+  animation: lightblink 0.9s ease infinite;
+}
+.status-chip.bond { border-color: #c05a8a; color: #ffc0da; background: rgba(58, 18, 38, .9); }
+
+/* ================= 联动伙伴 ================= */
+.hud-allies { display: flex; gap: 6px; align-items: center; }
+.ally-icon {
+  width: 30px; height: 30px; border-radius: 50%; cursor: help;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  background: radial-gradient(circle at 35% 30%, #3a4a7a, #182036);
+  border: 2px solid #5a7ab0; box-shadow: 0 0 8px rgba(90, 140, 220, .3);
+}
+.shop-item.ally-item {
+  width: 170px; padding: 10px; border-radius: 12px; cursor: pointer;
+  background: rgba(24, 32, 60, .85); border: 1px solid #3a5a8a; text-align: center;
+  transition: all .15s ease;
+}
+.shop-item.ally-item:hover { border-color: #7ab0ff; box-shadow: 0 0 16px rgba(120, 170, 255, .3); }
+.shop-item.ally-item .big-ic { font-size: 30px; }
+.shop-item.ally-item .sub-name { font-size: 14px; color: #cfe9ff; margin: 4px 0; font-weight: bold; }
+.shop-item.ally-item .ally-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; min-height: 48px; }
+
+/* ================= 联动主题 ================= */
+.mode-tabs { display: flex; gap: 10px; }
+.mode-tab {
+  padding: 9px 24px; font-size: 15px; border-radius: 999px; cursor: pointer;
+  background: rgba(20, 26, 51, .8); border: 2px solid #3a4570; color: var(--text-dim);
+  transition: all .18s ease;
+}
+.mode-tab:hover { border-color: var(--cyan); color: #cfe9ff; }
+.mode-tab.active { border-color: var(--gold); color: var(--gold); background: rgba(60, 48, 20, .55); }
+.theme-hint { max-width: 780px; text-align: center; color: var(--text-dim); font-size: 13px; line-height: 1.8; }
+.class-card.theme-card { background: linear-gradient(180deg, rgba(44, 30, 60, .95), rgba(20, 14, 36, .95)); border-color: #6a4a9a; }
+.class-card.theme-card:hover { border-color: #c9a6ff; box-shadow: 0 12px 40px rgba(201, 166, 255, .25); }
+.class-card.theme-card.selected { border-color: var(--gold); }
+.class-tag {
+  display: inline-block; margin: -2px 0 8px; padding: 2px 12px; font-size: 12px;
+  border-radius: 999px; background: rgba(201, 166, 255, .12); color: #d8c0ff; border: 1px solid #6a4a9a;
+}
+.help-theme {
+  margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(40, 30, 60, .6); border: 1px solid #4a3a70; font-size: 13px; line-height: 1.7;
+}
+.theme-badge { color: #d8c0ff; letter-spacing: 2px; }
+.curse-badge {
+  margin-left: 10px; font-size: 13px; letter-spacing: 0; color: #ff8fb0;
+  padding: 2px 10px; border-radius: 999px; border: 1px solid #7a3a55; background: rgba(60, 20, 34, .7);
+  cursor: help;
+}
+.map-intro { color: var(--text-dim); font-size: 13px; margin-bottom: 6px; font-style: italic; }
+.map-node[data-type="curse"] {
+  background: radial-gradient(circle at 35% 30%, #6a2a4a, #2a1020); border-color: #b04a7a;
+  box-shadow: 0 0 14px rgba(255, 90, 130, .35);
+}
+.map-node[data-type="ward"] {
+  background: radial-gradient(circle at 35% 30%, #2a6a5a, #0f2620); border-color: #5ad0a0;
+  box-shadow: 0 0 14px rgba(90, 208, 160, .35);
+}
+
+/* 域之量表 */
+.field-gauge {
+  margin: 10px auto 0; width: min(70vw, 460px); text-align: center;
+  padding: 6px 12px 8px; border-radius: 12px;
+  background: rgba(16, 20, 44, .75); border: 1px solid #3a4570;
+}
+.field-gauge.danger { border-color: #b04a6a; box-shadow: 0 0 18px rgba(255, 90, 130, .25); }
+.field-gauge .fg-label { font-size: 13px; color: #cfe9ff; letter-spacing: 2px; }
+.field-gauge.danger .fg-label { color: #ffaab8; }
+.field-gauge .fg-bar { height: 8px; margin: 5px 0 3px; border-radius: 999px; background: #1a2140; overflow: hidden; }
+.field-gauge .fg-fill {
+  height: 100%; border-radius: 999px; transition: width .3s ease;
+  background: linear-gradient(90deg, #4a8aa8, #a78bfa 70%, #ff5a82);
+}
+.field-gauge .fg-hint { font-size: 11px; color: var(--text-dim); }
+.field-gauge.pulse { animation: fgpulse .5s ease; }
+@keyframes fgpulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.05); box-shadow: 0 0 26px rgba(167, 139, 250, .6); }
+  100% { transform: scale(1); }
+}
+
+/* 黑闪 */
+.blackflash-text {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 108px; font-weight: 900; letter-spacing: 14px; color: #fff;
+  text-shadow: 0 0 30px #000, 0 0 60px #ff2d55, 0 0 90px #000;
+  animation: bfanim .9s ease forwards;
+}
+@keyframes bfanim {
+  0% { opacity: 0; transform: scale(2.4) rotate(-6deg); }
+  18% { opacity: 1; transform: scale(1) rotate(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+.fx-blackflash {
+  position: absolute; width: 220px; height: 220px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,255,255,.95), rgba(255,45,85,.5) 40%, transparent 70%);
+  animation: bffx .55s ease-out forwards;
+}
+@keyframes bffx {
+  0% { transform: scale(.2); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* 卡牌上的主题标记 */
+.card .ctag {
+  position: absolute; top: 6px; right: 6px; font-size: 10px; padding: 1px 6px;
+  border-radius: 6px; background: rgba(120, 90, 200, .3); border: 1px solid #7a6ad0; color: #d8c0ff;
+}
+.card .ctag.ghost { background: rgba(60, 90, 70, .3); border-color: #5a9a7a; color: #a8e8c8; }
+.card.cls-jjk { border-color: #7a5ac0; }
+.card.cls-mystery { border-color: #5a8a7a; }
+.card .ce-bonus { color: #c9a6ff; font-weight: bold; }
+.card.cls-jjk .cdesc, .card.cls-mystery .cdesc { color: #cfe0d8; }
 
 /* 技能包商店 */
 .pack-row {
