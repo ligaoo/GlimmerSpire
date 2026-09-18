@@ -199,6 +199,13 @@
 
   function checkPlayerDeath(run) {
     if (run.player.hp > 0) return;
+    // 不死鸟之血:战斗内一次重生(优先于遗物)
+    if (run.combat && statusOf(run.combat.player, 'demonRevive') > 0) {
+      delete run.combat.player.statuses.demonRevive;
+      run.player.hp = Math.max(1, Math.floor(run.player.maxHp * 0.5));
+      pushEv(run, { t: 'text', msg: '不死鸟之血燃起,你从灰烬中重生!' });
+      return;
+    }
     if (owned(run, 'phoenixfeather') && !run.phoenixUsed) {
       run.phoenixUsed = true;
       run.player.relics = run.player.relics.filter(id => id !== 'phoenixfeather');
@@ -224,6 +231,7 @@
         if (e.hp <= 0 && !e.dead) {
           e.dead = true;
           changed = true;
+          c.kills = (c.kills || 0) + 1;
           const d = enemyDef(e);
           pushEv(run, { t: 'death', uid: e.uid });
           if (statusOf(e, 'corpseExp') > 0) {
@@ -268,6 +276,7 @@
         const bonus = c.pendingAttackBonus; c.pendingAttackBonus = 0;
         let base = (cardView(run, inst).dmg || 0) + (c.permBoosts[inst.uid] || 0);
         if (inst.id === 'shiv') base += c.shivBonus || 0;
+        if (inst.id === 'imp') base += c.impBonus || 0;
         for (let i = 0; i < times; i++) {
           if (!target || target.dead) break;
           const amt = calcPlayerAttack(run, base, target, { bonus, firstAttack: first && i === 0 });
@@ -339,6 +348,62 @@
       handSize() { return c.hand.length; },
       currentBlock() { return c.player.block; },
       poisonOf(t) { const target = resolveT(t); return target ? statusOf(target, 'poison') : 0; },
+      selfStr() { return (c.player.statuses.str || 0) + (c.player.statuses.tempStr || 0); },
+      exhaustedCount() { return c.exhaust.length; },
+      killsCount() { return c.kills || 0; },
+      stripBlock(t) {
+        const target = resolveT(t);
+        if (target && !target.dead && target.block > 0) {
+          target.block = 0;
+          pushEv(run, { t: 'text', msg: target.name + ' 的格挡被击碎!' });
+        }
+      },
+      spreadPoison(t, copyMode) {
+        const target = resolveT(t);
+        if (!target || target.dead) return;
+        const stacks = statusOf(target, 'poison');
+        if (stacks <= 0) return;
+        let amount;
+        if (copyMode) {
+          amount = stacks;
+        } else {
+          amount = Math.floor(stacks / 2);
+          if (amount > 0) addStatus(run, target, 'poison', -amount);
+        }
+        if (amount > 0) {
+          for (const o of living()) {
+            if (o !== target) addStatus(run, o, 'poison', amount);
+          }
+        }
+      },
+      burstPoison(t, keepStacks) {
+        const target = resolveT(t);
+        if (!target || target.dead) return;
+        const stacks = statusOf(target, 'poison');
+        if (stacks <= 0) return;
+        hitEnemy(run, target, stacks, { noRetaliate: true });
+        if (!keepStacks) addStatus(run, target, 'poison', -Math.floor(stacks / 2));
+        sweepDead(run);
+      },
+      tryExecute(t) {
+        const target = resolveT(t);
+        if (!target || target.dead) return false;
+        if (target.hp > 0 && target.hp < target.maxHp * 0.35) {
+          pushEv(run, { t: 'text', msg: '处决!' });
+          target.hp = 0;
+          target.block = 0;
+          sweepDead(run);
+          return true;
+        }
+        return false;
+      },
+      healLostPct(pct, cap) {
+        const lost = run.player.maxHp - run.player.hp;
+        if (lost <= 0) return;
+        const heal = Math.min(cap || 999, Math.max(1, Math.floor(lost * pct)));
+        this.heal(heal);
+      },
+      bonusImp(n) { c.impBonus = (c.impBonus || 0) + n; },
       exhaustHandWhere(pred) {
         let n = 0;
         const staying = [];
@@ -456,6 +521,12 @@
     // 灵魂收割:消耗牌获得力量
     const sc = statusOf(c.player, 'soulCatch');
     if (sc > 0) addStatus(run, c.player, 'str', sc, true);
+    // 献血仪式:消耗牌回复生命
+    const br = statusOf(c.player, 'bloodRitual');
+    if (br > 0 && run.player.hp > 0) {
+      run.player.hp = clamp(run.player.hp + br, 0, run.player.maxHp);
+      pushEv(run, { t: 'heal', who: 'player', v: br });
+    }
   }
 
   function drawCards(run, n) {
@@ -544,7 +615,7 @@
       enemies,
       hand: [], draw: RNG.shuffle(run, deckCopy), discard: [], exhaust: [],
       player: { block: 0, statuses: {}, energy: 0, maxEnergy: 3 + relicVal(run, 'energyBonus') },
-      hpLostThisTurn: 0, permBoosts: {}, shivBonus: 0,
+      hpLostThisTurn: 0, permBoosts: {}, shivBonus: 0, impBonus: 0, kills: 0,
       firstAttackUsed: false, firstSkillUsed: false, pendingAttackBonus: 0,
       pending: null, cardsPlayed: 0
     };
@@ -599,6 +670,20 @@
       pushEv(run, { t: 'dmg', who: 'player', v: 2, self: true });
       checkPlayerDeath(run);
     }
+    // 深渊注视:随机敌人易伤
+    if ((c.player.statuses.abyssGaze || 0) > 0) {
+      const alive = c.enemies.filter(e => !e.dead);
+      if (alive.length) addStatus(run, RNG.pick(run, alive), 'vuln', c.player.statuses.abyssGaze);
+    }
+    // 生命转化:失去生命换能量
+    if ((c.player.statuses.lifeConvert || 0) > 0) {
+      const cost = c.player.statuses.lifeConvert;
+      run.player.hp = Math.max(0, run.player.hp - cost);
+      c.player.energy += 1;
+      pushEv(run, { t: 'dmg', who: 'player', v: cost, self: true });
+      pushEv(run, { t: 'energy', v: c.player.energy });
+      checkPlayerDeath(run);
+    }
     // 抽牌
     let n = 5 + (c.player.statuses.drawNext || 0);
     if (c.player.statuses.drawNext) delete c.player.statuses.drawNext;
@@ -622,6 +707,15 @@
     // 回合结束触发
     const metal = statusOf(c.player, 'metal');
     if (metal > 0) gainPlayerBlock(run, metal);
+    // 恶魔之力:回合结束失去生命
+    const dp = statusOf(c.player, 'demonPact');
+    if (dp > 0) {
+      run.player.hp = Math.max(0, run.player.hp - dp);
+      c.hpLostThisTurn += dp;
+      pushEv(run, { t: 'dmg', who: 'player', v: dp, self: true });
+      checkPlayerDeath(run);
+      if (run.screen === 'gameover') return;
+    }
     // 手中状态/诅咒伤害
     let burnDmg = 0;
     for (const h of c.hand) {
@@ -1505,9 +1599,14 @@
   function loadStats() {
     try {
       const raw = localStorage.getItem(STATS_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const s = JSON.parse(raw);
+        s.points = s.points || 0;
+        s.spent = s.spent || 0;
+        return s;
+      }
     } catch (e) { }
-    return { runs: 0, wins: 0, losses: 0, best: 0, classWins: { warrior: 0, ranger: 0, warlock: 0 } };
+    return { runs: 0, wins: 0, losses: 0, best: 0, points: 0, spent: 0, classWins: { warrior: 0, ranger: 0, warlock: 0 } };
   }
   function saveStats(s) {
     try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) { }
@@ -1533,7 +1632,29 @@
     const sc = Engine.score(run);
     const s = loadStats();
     if (sc > s.best) { s.best = sc; saveStats(s); }
+    Engine.awardRunPoints(run);
     saveRun(null);
+  };
+  // 积分:每局结束按得分发放,用于解锁技能包
+  Engine.awardRunPoints = function (run) {
+    if (!run || run.pointsAwarded) return 0;
+    run.pointsAwarded = true;
+    const sc = Engine.score(run);
+    const s = loadStats();
+    s.points += sc;
+    saveStats(s);
+    return sc;
+  };
+  Engine.availablePoints = function () {
+    const s = loadStats();
+    return Math.max(0, s.points - s.spent);
+  };
+  Engine.spendPoints = function (n) {
+    if (Engine.availablePoints() < n) return false;
+    const s = loadStats();
+    s.spent += n;
+    saveStats(s);
+    return true;
   };
   Engine.onVictoryScore = function (run) {
     const sc = Engine.score(run);

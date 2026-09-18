@@ -161,6 +161,182 @@
   });
 
   def({
+    id: 'bloodslash', cls: 'warrior', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 8, pack: 'bloodfury', target: 'enemy',
+    name: '血性挥砍', desc: '造成 {D} 点伤害。若本场战斗已消耗至少 5 张牌,伤害翻倍。',
+    up: { dmg: 11, desc: '造成 {D} 点伤害。若本场战斗已消耗至少 5 张牌,伤害翻倍。' },
+    play(A, inst, t) {
+      if (A.exhaustedCount() >= 5) A.attackBonus(CARDS.view({ id: inst.id, up: inst.up ? 1 : 0 }).dmg);
+      A.attack();
+    }
+  });
+  def({
+    id: 'bloodritual', cls: 'warrior', type: 'power', rarity: 'uncommon', cost: 1, pack: 'bloodfury', target: 'none',
+    name: '献血仪式', desc: '每当有牌被消耗,回复 2 点生命。', up: { desc: '每当有牌被消耗,回复 3 点生命。' },
+    play(A, inst) { A.applySelf('bloodRitual', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'laststand', cls: 'warrior', type: 'attack', rarity: 'rare', cost: 2, dmg: 10, pack: 'bloodfury', target: 'enemy',
+    name: '破釜沉舟', desc: '消耗手牌中所有其他牌,每消耗一张此牌伤害 +4。造成 {D} 点伤害。',
+    up: { dmg: 14, desc: '消耗手牌中所有其他牌,每消耗一张此牌伤害 +4。造成 {D} 点伤害。' },
+    play(A) {
+      const n = A.handSize();
+      if (n > 0) { A.attackBonus(n * 4); A.exhaustHandWhere(() => true); }
+      A.attack();
+    }
+  });
+  def({
+    id: 'spikedarmor', cls: 'warrior', type: 'power', rarity: 'uncommon', cost: 1, pack: 'ironwall', target: 'none',
+    name: '针甲', desc: '获得 4 点荆棘。', up: { desc: '获得 6 点荆棘。' },
+    play(A, inst) { A.applySelf('thorns', inst.up ? 6 : 4); }
+  });
+  def({
+    id: 'shieldwall', cls: 'warrior', type: 'skill', rarity: 'rare', cost: 2, exhaust: true, pack: 'ironwall', target: 'none',
+    name: '盾墙', desc: '当前格挡值翻倍。消耗。',
+    up: { cost: 1, desc: '当前格挡值翻倍。消耗。' },
+    play(A) { const b = A.currentBlock(); if (b > 0) A.gainBlock(b); }
+  });
+  def({
+    id: 'ironslam', cls: 'warrior', type: 'attack', rarity: 'uncommon', cost: 0, pack: 'ironwall', target: 'enemy',
+    name: '铁山靠', desc: '造成等同力量 ×2 的伤害。',
+    up: { desc: '造成等同力量 ×3 的伤害。' },
+    play(A, inst) { A.attackBonus(A.selfStr() * (inst.up ? 3 : 2)); A.attack(); }
+  });
+  def({
+    id: 'warcry', cls: 'warrior', type: 'skill', rarity: 'common', cost: 1, pack: 'breakthrough', target: 'all',
+    name: '威吓战吼', desc: '所有敌人获得 2 层虚弱和 2 层易伤。',
+    up: { desc: '所有敌人获得 3 层虚弱和 3 层易伤。' },
+    play(A, inst) { const n = inst.up ? 3 : 2; A.applyAll('weak', n); A.applyAll('vuln', n); }
+  });
+  def({
+    id: 'rally', cls: 'warrior', type: 'skill', rarity: 'common', cost: 1, pack: 'breakthrough', target: 'none',
+    name: '士气', desc: '抽 1 张牌,获得 1 点力量。',
+    up: { desc: '抽 2 张牌,获得 1 点力量。' },
+    play(A, inst) { A.draw(inst.up ? 2 : 1); A.applySelf('str', 1); }
+  });
+  def({
+    id: 'armorbreak', cls: 'warrior', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 10, pack: 'breakthrough', target: 'enemy',
+    name: '破甲重击', desc: '先移除目标所有格挡,再造成 {D} 点伤害。',
+    up: { dmg: 14, desc: '先移除目标所有格挡,再造成 {D} 点伤害。' },
+    play(A, inst, t) { A.stripBlock(t); A.attack(); }
+  });
+
+  /* ============ 游侠技能包 ============ */
+  def({
+    id: 'sharpen', cls: 'ranger', type: 'power', rarity: 'uncommon', cost: 1, pack: 'shadowblade', target: 'none',
+    name: '锐化', desc: '本场战斗中,你的「刃」伤害 +3。', up: { desc: '本场战斗中,你的「刃」伤害 +5。' },
+    play(A, inst) { A.bonusShiv(inst.up ? 5 : 3); }
+  });
+  def({
+    id: 'quickthrow', cls: 'ranger', type: 'attack', rarity: 'common', cost: 0, dmg: 4, pack: 'shadowblade', target: 'enemy',
+    name: '连携投掷', desc: '造成 {D} 点伤害,将 1 张「刃」加入手牌。',
+    up: { dmg: 6, desc: '造成 {D} 点伤害,将 1 张「刃」加入手牌。' },
+    play(A) { A.attack(); A.addToken('shiv', 1); }
+  });
+  def({
+    id: 'shadowflurry', cls: 'ranger', type: 'skill', rarity: 'uncommon', cost: 2, pack: 'shadowblade', target: 'none',
+    name: '影刃乱舞', desc: '将 3 张「刃」加入手牌,抽 1 张牌。',
+    up: { desc: '将 4 张「刃」加入手牌,抽 1 张牌。' },
+    play(A, inst) { A.addToken('shiv', inst.up ? 4 : 3); A.draw(1); }
+  });
+  def({
+    id: 'corrode', cls: 'ranger', type: 'attack', rarity: 'common', cost: 1, dmg: 5, pack: 'plague', target: 'enemy',
+    name: '腐蚀之刃', desc: '造成 {D} 点伤害,施加 3 层中毒。',
+    up: { dmg: 7, desc: '造成 {D} 点伤害,施加 4 层中毒。' },
+    play(A, inst, t) { A.attack(); A.applyTo(t, 'poison', inst.up ? 4 : 3); }
+  });
+  def({
+    id: 'spreadplague', cls: 'ranger', type: 'skill', rarity: 'uncommon', cost: 1, pack: 'plague', target: 'enemy',
+    name: '疫病蔓延', desc: '目标中毒层数减半,其他每个敌人获得等同被移除层数的中毒。',
+    up: { desc: '其他每个敌人获得等同目标中毒层数的中毒。' },
+    play(A, inst, t) { A.spreadPoison(t, !!inst.up); }
+  });
+  def({
+    id: 'detonate', cls: 'ranger', type: 'skill', rarity: 'rare', cost: 1, exhaust: true, pack: 'plague', target: 'enemy',
+    name: '毒性引爆', desc: '目标受到等同其中毒层数的伤害,然后中毒层数减半。消耗。',
+    up: { desc: '目标受到等同其中毒层数的伤害。消耗。' },
+    play(A, inst, t) { A.burstPoison(t, !!inst.up); }
+  });
+  def({
+    id: 'huntmark', cls: 'ranger', type: 'skill', rarity: 'common', cost: 0, pack: 'hunter', target: 'enemy',
+    name: '猎手标记', desc: '目标获得 3 层易伤。',
+    up: { desc: '目标获得 4 层易伤。' },
+    play(A, inst, t) { A.applyTo(t, 'vuln', inst.up ? 4 : 3); }
+  });
+  def({
+    id: 'trapmaster', cls: 'ranger', type: 'skill', rarity: 'uncommon', cost: 2, pack: 'hunter', target: 'none',
+    name: '陷阱专家', desc: '获得 5 点荆棘,抽 1 张牌。',
+    up: { desc: '获得 8 点荆棘,抽 1 张牌。' },
+    play(A, inst) { A.applySelf('thorns', inst.up ? 8 : 5); A.draw(1); }
+  });
+  def({
+    id: 'executioner', cls: 'ranger', type: 'attack', rarity: 'rare', cost: 3, dmg: 15, pack: 'hunter', target: 'enemy',
+    name: '致命精准', desc: '造成 {D} 点伤害。若目标生命低于其最大生命的 35%,直接将其处决。',
+    up: { dmg: 20, desc: '造成 {D} 点伤害。若目标生命低于其最大生命的 35%,直接将其处决。' },
+    play(A, inst, t) { A.attack(); A.tryExecute(t); }
+  });
+
+  /* ============ 术士技能包 ============ */
+  def({
+    id: 'imparable', cls: 'warlock', type: 'skill', rarity: 'uncommon', cost: 2, pack: 'demon', target: 'none',
+    name: '小鬼大军', desc: '将 3 张「小鬼」加入手牌,本场战斗中「小鬼」伤害 +2。',
+    up: { desc: '将 4 张「小鬼」加入手牌,本场战斗中「小鬼」伤害 +2。' },
+    play(A, inst) { A.bonusImp(2); A.addToken('imp', inst.up ? 4 : 3); }
+  });
+  def({
+    id: 'demonpower', cls: 'warlock', type: 'power', rarity: 'uncommon', cost: 1, pack: 'demon', target: 'none',
+    name: '恶魔之力', desc: '获得 3 点力量。每回合结束时失去 2 点生命。',
+    up: { desc: '获得 4 点力量。每回合结束时失去 2 点生命。' },
+    play(A, inst) { A.applySelf('str', inst.up ? 4 : 3); A.applySelf('demonPact', 2); }
+  });
+  def({
+    id: 'soulfeast', cls: 'warlock', type: 'attack', rarity: 'rare', cost: 2, dmg: 10, pack: 'demon', target: 'enemy',
+    name: '灵魂盛宴', desc: '造成 {D} 点伤害。若本场战斗已有敌人死亡,伤害翻倍。',
+    up: { dmg: 14, desc: '造成 {D} 点伤害。若本场战斗已有敌人死亡,伤害翻倍。' },
+    play(A, inst) {
+      if (A.killsCount() > 0) A.attackBonus(CARDS.view({ id: inst.id, up: inst.up ? 1 : 0 }).dmg);
+      A.attack();
+    }
+  });
+  def({
+    id: 'lifetap', cls: 'warlock', type: 'attack', rarity: 'common', cost: 1, dmg: 6, pack: 'abyss', target: 'enemy',
+    name: '虚空汲取', desc: '造成 {D} 点伤害,回复已失去生命的 20%(最多 12 点)。',
+    up: { dmg: 9, desc: '造成 {D} 点伤害,回复已失去生命的 20%(最多 12 点)。' },
+    play(A) { A.attack(); A.healLostPct(0.2, 12); }
+  });
+  def({
+    id: 'abysswatcher', cls: 'warlock', type: 'power', rarity: 'uncommon', cost: 2, pack: 'abyss', target: 'none',
+    name: '深渊注视', desc: '每回合开始时,随机一名敌人获得 2 层易伤。',
+    up: { desc: '每回合开始时,随机一名敌人获得 3 层易伤。' },
+    play(A, inst) { A.applySelf('abyssGaze', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'annihilate', cls: 'warlock', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 12, pack: 'abyss', target: 'enemy',
+    name: '湮灭', desc: '造成 {D} 点伤害。若目标带有易伤,额外造成 8 点伤害。',
+    up: { dmg: 16, desc: '造成 {D} 点伤害。若目标带有易伤,额外造成 12 点伤害。' },
+    play(A, inst, t) {
+      if ((t && t.statuses && t.statuses.vuln) > 0) A.attackBonus(inst.up ? 12 : 8);
+      A.attack();
+    }
+  });
+  def({
+    id: 'bloodblade', cls: 'warlock', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 20, pack: 'bloodmagic', target: 'enemy',
+    name: '血祭之刃', desc: '失去 5 点生命,造成 {D} 点伤害。',
+    up: { dmg: 26, desc: '失去 5 点生命,造成 {D} 点伤害。' },
+    play(A) { A.loseHp(5); A.attack(); }
+  });
+  def({
+    id: 'lifetransform', cls: 'warlock', type: 'power', rarity: 'rare', cost: 1, pack: 'bloodmagic', target: 'none',
+    name: '生命转化', desc: '每回合开始时失去 3 点生命,获得 1 点能量。',
+    up: { desc: '每回合开始时失去 2 点生命,获得 1 点能量。' },
+    play(A, inst) { A.applySelf('lifeConvert', inst.up ? 2 : 3); }
+  });
+  def({
+    id: 'phoenixblood', cls: 'warlock', type: 'power', rarity: 'rare', cost: 3, exhaust: true, pack: 'bloodmagic', target: 'none',
+    name: '不死鸟之血', desc: '本场战斗中你首次受到致命伤害时,回复 50% 生命并移除此效果。消耗。',
+    up: { cost: 2, desc: '本场战斗中你首次受到致命伤害时,回复 50% 生命并移除此效果。消耗。' },
+    play(A) { A.applySelf('demonRevive', 1); }
+  });
+  def({
     id: 'bodyslam', cls: 'warrior', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 0, target: 'enemy',
     name: '全身撞击', desc: '造成等同当前格挡值的伤害。',
     up: { cost: 0, desc: '造成等同当前格挡值的伤害。' },
@@ -537,12 +713,16 @@
       const d = C[id];
       return d && d.up && Object.keys(d.up).length > 0;
     },
-    // 职业奖励池
+    // 职业奖励池(未解锁的技能包卡不出现在池中)
     pool(cls, rarity) {
       const out = [];
+      const unlocks = global.GS && global.GS.Unlocks;
       for (const id in C) {
         const d = C[id];
-        if (d.rarity === rarity && (d.cls === cls || d.cls === 'none') && d.rarity !== 'basic') out.push(id);
+        if (d.rarity === rarity && (d.cls === cls || d.cls === 'none') && d.rarity !== 'basic') {
+          if (d.pack && !(unlocks && unlocks.owned(d.pack))) continue;
+          out.push(id);
+        }
       }
       return out;
     },
@@ -565,7 +745,8 @@
       poison: '中毒', metal: '金属化', thorns: '荆棘', ritual: '仪式', artifact: '护盾术',
       barricade: '路障', echo: '回响', corpseExp: '尸爆', fumes: '剧毒烟雾', cuts: '千刀万剐',
       afterimage: '残影', feelNoPain: '麻痹痛楚', drawNext: '抽牌', bloodRage: '血怒', regen: '再生',
-      soulCatch: '灵魂收割', bloodPact: '献祭契约'
+      soulCatch: '灵魂收割', bloodPact: '献祭契约', bloodRitual: '献血仪式',
+      demonPact: '恶魔之力', abyssGaze: '深渊注视', lifeConvert: '生命转化', demonRevive: '不死鸟之血'
     }
   };
 

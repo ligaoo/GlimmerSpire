@@ -193,6 +193,21 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 .status-chip.buff { border-color: #7a9a50; color: #b8e89a; }
 .status-chip.debuff { border-color: #9a5060; color: #ffaab8; }
 
+/* 技能包商店 */
+.pack-row {
+  margin-top: 10px; padding: 14px 16px; border-radius: 12px;
+  background: rgba(27, 35, 64, .7); border: 1px solid #3a4570;
+}
+.pack-row.owned-row { border-color: #4a7a50; }
+.pack-head { display: flex; align-items: center; justify-content: space-between; }
+.pack-name { font-size: 17px; font-weight: bold; color: var(--gold); }
+.pack-cost { font-size: 13px; color: var(--text-dim); }
+.pack-cost.owned { color: var(--green); }
+.pack-desc { font-size: 13px; color: var(--text-dim); margin: 6px 0 10px; }
+.pack-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+.pack-cards .card { transform: scale(.92); transform-origin: left top; }
+.pack-row button { margin-top: 12px; padding: 8px 20px; }
+
 /* 战斗底部 */
 #combat-bottom {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 15;

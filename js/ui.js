@@ -34,7 +34,12 @@
     drawNext: ['下回合抽牌', '下回合额外抽取等同层数的牌'],
     bloodRage: ['血怒', '回合开始获得等同层数的力量并失去 2 生命'],
     soulCatch: ['灵魂收割', '每有牌被消耗,获得等同层数的力量'],
-    bloodPact: ['献祭契约', '每因卡牌失去 1 点生命,对所有敌人造成 1 点伤害']
+    bloodPact: ['献祭契约', '每因卡牌失去 1 点生命,对所有敌人造成 1 点伤害'],
+    bloodRitual: ['献血仪式', '每有牌被消耗,回复等同层数的生命'],
+    demonPact: ['恶魔之力', '每回合结束时失去等同层数的生命'],
+    abyssGaze: ['深渊注视', '每回合开始时,随机一名敌人获得等同层数的易伤'],
+    lifeConvert: ['生命转化', '每回合开始时失去等同层数的生命,获得 1 点能量'],
+    demonRevive: ['不死鸟之血', '首次受到致命伤害时回复 50% 生命,然后移除此效果']
   };
 
   const NODE_META = {
@@ -724,12 +729,14 @@
       panel.appendChild(el('div', 'end-art', '💀'));
       panel.appendChild(el('div', 'end-title lose', '你倒下了'));
       const sc = Engine.score(run);
+      const pts = Engine.awardRunPoints(run);
       const table = el('div', 'score-table');
       table.innerHTML = `
         <span>到达:<b>${run.act > 3 ? '无尽 第' + (run.act - 3) + ' 轮' : '第 ' + run.act + ' 幕'}</b> · 第 ${run.floorTotal} 层</span>
         <span>击败敌人:<b>${run.player.stats.enemies}</b> · BOSS:<b>${run.player.stats.bosses}</b></span>
         <span>剩余金币:<b>${run.player.gold}</b></span>
-        <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>`;
+        <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
+        <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>`;
       panel.appendChild(table);
       const btns = el('div', 'modal-btns');
       const again = el('button', 'primary', '再次攀登');
@@ -748,11 +755,13 @@
       panel.appendChild(el('div', 'end-art', '🏆'));
       panel.appendChild(el('div', 'end-title win', '登顶成功!'));
       const sc = Engine.score(run);
+      const pts = Engine.awardRunPoints(run);
       const table = el('div', 'score-table');
       table.innerHTML = `
         <span>职业:<b>${CLASS_META[run.cls].name}</b> · 击败敌人:<b>${run.player.stats.enemies}</b></span>
         <span>总层数:<b>${run.floorTotal}</b> · 剩余金币:<b>${run.player.gold}</b></span>
-        <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>`;
+        <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
+        <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>`;
       panel.appendChild(table);
       const btns = el('div', 'modal-btns');
       const endless = el('button', 'danger', '🌀 无尽攀登(更强的敌人)');
@@ -805,6 +814,9 @@
       const stats = el('button', 'ghost', '📊 历史战绩');
       stats.onclick = () => this.statsModal();
       btns.appendChild(stats);
+      const packsBtn = el('button', '', `🛒 技能包商店(积分 ${Engine.availablePoints()})`);
+      packsBtn.onclick = () => this.packShopModal();
+      btns.appendChild(packsBtn);
       const help = el('button', 'ghost', '❔ 玩法说明');
       help.onclick = () => this.helpModal();
       btns.appendChild(help);
@@ -960,8 +972,9 @@
         ⚔️战斗 💀精英(高风险高回报) 🔥篝火(休整/锻造) 🏪商店 ❓事件 🎁宝箱 👑BOSS
         <h4>快捷键</h4>
         <span class="kbd">1-9</span> 打出对应手牌 · <span class="kbd">E</span> 结束回合 · <span class="kbd">Esc</span> 取消/关闭
-        <h4>存档</h4>
-        每走一步自动存档,关闭页面后可从主菜单继续。`));
+        <h4>存档与技能包</h4>
+        每走一步自动存档,关闭页面后可从主菜单继续。每局结算按得分累积<b style="color:#6ee7ff">积分</b>,
+        在主菜单的<b>技能包商店</b>解锁新流派卡牌(永久加入对应职业卡池)。`));
       const btns = el('div', 'modal-btns');
       const close = el('button', '', '开始冒险');
       close.onclick = () => this.closeModal();
@@ -979,6 +992,8 @@
         <h4>总攀登次数:${s.runs}</h4>
         <h4>登顶成功:${s.wins} 次(${s.runs ? Math.round(s.wins / s.runs * 100) : 0}%)</h4>
         <h4>最佳得分:${s.best}</h4>
+        <h4>累计积分:${s.points}(已消费 ${s.spent},可用 ${Engine.availablePoints()})</h4>
+        <h4>已解锁技能包:${GS.Unlocks.list().length} / ${GS.Unlocks.all.length}</h4>
         <div style="margin-top:10px">
           ⚔️ 剑士登顶 ${s.classWins.warrior} 次<br>
           🗡️ 游侠登顶 ${s.classWins.ranger} 次<br>
@@ -990,6 +1005,61 @@
       btns.appendChild(close);
       modal.appendChild(btns);
       this.openModal(modal);
+    },
+
+    packShopModal() {
+      const self = this;
+      const build = () => {
+        const modal = el('div', 'modal pack-modal');
+        modal.appendChild(el('h3', '', `技能包商店`));
+        const pts = Engine.availablePoints();
+        modal.appendChild(el('div', 'tip-line', `当前可用积分:<b style="color:#f0c96a;font-size:17px"> ${pts}</b> —— 每局结算按得分自动累积,解锁后包内卡牌永久进入该职业的卡池`));
+        for (const cls of ['warrior', 'ranger', 'warlock']) {
+          const meta = CLASS_META[cls];
+          const section = el('div', '', '');
+          section.style.cssText = 'margin-top:18px';
+          section.appendChild(el('div', 'shop-label', `${meta.art} ${meta.name}`));
+          for (const pack of GS.Unlocks.all.filter(p => p.cls === cls)) {
+            const owned = GS.Unlocks.owned(pack.id);
+            const row = el('div', 'pack-row');
+            const head = el('div', 'pack-head');
+            head.innerHTML = `<span class="pack-name">${esc(pack.name)}</span>
+              <span class="pack-cost ${owned ? 'owned' : ''}">${owned ? '✓ 已解锁' : '🪙 ' + pack.cost + ' 积分'}</span>`;
+            row.appendChild(head);
+            row.appendChild(el('div', 'pack-desc', esc(pack.desc)));
+            const cardsBox = el('div', 'pack-cards');
+            for (const cid of pack.cards) {
+              cardsBox.appendChild(this.cardEl({ id: cid, up: 0 }, { preview: false }));
+            }
+            row.appendChild(cardsBox);
+            if (!owned) {
+              const btn = el('button', pts >= pack.cost ? 'primary' : 'ghost', pts >= pack.cost ? `解锁(${pack.cost} 积分)` : `积分不足(${pack.cost})`);
+              btn.disabled = pts < pack.cost;
+              btn.onclick = () => {
+                if (Engine.spendPoints(pack.cost)) {
+                  GS.Unlocks.unlock(pack.id);
+                  AudioFX.play('relic');
+                  self.toast('已解锁技能包「' + pack.name + '」!');
+                  self.closeModal();
+                  self.packShopModal();
+                  // 刷新主菜单按钮上的积分
+                  if (!self.run) self.render();
+                } else self.toast('积分不足');
+              };
+              row.appendChild(btn);
+            }
+            section.appendChild(row);
+          }
+          modal.appendChild(section);
+        }
+        const btns = el('div', 'modal-btns');
+        const close = el('button', '', '关闭');
+        close.onclick = () => { this.closeModal(); if (!this.run) this.render(); };
+        btns.appendChild(close);
+        modal.appendChild(btns);
+        return modal;
+      };
+      this.openModal(build());
     },
 
     /* ================= tooltip / toast ================= */

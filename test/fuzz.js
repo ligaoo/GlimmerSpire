@@ -16,9 +16,13 @@ require('../js/enemies.js');
 require('../js/relics.js');
 require('../js/potions.js');
 require('../js/events.js');
+require('../js/packs.js');
 require('../js/engine.js');
 
 const { Engine, RNG, CARDS } = globalThis.GS;
+
+// 测试环境:解锁全部技能包,让新卡进入模糊池
+GS.Unlocks.unlockAll();
 
 let failures = 0;
 function fail(msg) {
@@ -382,6 +386,104 @@ function mechanicTests() {
     assert(run.rewards[0].taken === true, '药水奖励未标记已领取');
     assert(gold1 - gold0 === 15, `满药水时应一次性转15金币,实际 ${gold1 - gold0}`);
     assert(gold2 === gold1, `奖励被重复领取: ${gold1} -> ${gold2}`);
+  }
+  // --- v3 技能包机制测试 ---
+  // 盾墙:格挡翻倍
+  {
+    const run = Engine.newRun('warrior', 301);
+    run.player.deck = [{ id: 'shieldwall', up: 0 }, { id: 'defend', up: 0 }];
+    forceCombat(run, ['cultist'], 'normal');
+    const c = run.combat;
+    let guard = 0;
+    while (guard++ < 10) {
+      const di = c.hand.findIndex(h => h.id === 'defend');
+      if (di >= 0 && Engine.canPlay(run, di)) { Engine.playCard(run, di, 0); break; }
+      Engine.endTurn(run);
+      if (run.screen !== 'combat') break;
+    }
+    if (run.screen === 'combat') {
+      const b0 = c.player.block;
+      const si = c.hand.findIndex(h => h.id === 'shieldwall');
+      if (si >= 0 && b0 >= 5) {
+        Engine.playCard(run, si, 0);
+        assert(c.player.block >= b0 * 2 - 1, `盾墙未翻倍: ${b0} -> ${c.player.block}`);
+      }
+    }
+  }
+  // 致命精准:低血处决
+  {
+    const run = Engine.newRun('ranger', 302);
+    run.player.deck = [{ id: 'executioner', up: 0 }];
+    forceCombat(run, ['stonegolem'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 10; // 10 < 130*0.35
+    const ei = c.hand.findIndex(h => h.id === 'executioner');
+    if (ei >= 0) {
+      Engine.playCard(run, ei, 0);
+      assert(c.enemies[0].dead, '致命精准未处决低血目标');
+    }
+  }
+  // 毒性引爆:立即结算+减半
+  {
+    const run = Engine.newRun('ranger', 303);
+    run.player.deck = [{ id: 'detonate', up: 0 }];
+    forceCombat(run, ['jawworm'], 'normal');
+    const c = run.combat;
+    c.enemies[0].statuses.poison = 10;
+    c.enemies[0].block = 0;
+    const hpB = c.enemies[0].hp;
+    const di = c.hand.findIndex(h => h.id === 'detonate');
+    if (di >= 0) {
+      Engine.playCard(run, di, 0);
+      assert(hpB - c.enemies[0].hp >= 10, `毒性引爆未结算: ${hpB - c.enemies[0].hp}`);
+      assert((c.enemies[0].statuses.poison || 0) === 5, `中毒未减半: ${c.enemies[0].statuses.poison}`);
+    }
+  }
+  // 不死鸟之血:战斗内重生
+  {
+    const run = Engine.newRun('warlock', 304);
+    run.player.deck = [{ id: 'phoenixblood', up: 0 }];
+    run.player.maxHp = 100; run.player.hp = 100;
+    forceCombat(run, ['jawworm'], 'normal');
+    const c = run.combat;
+    const pi = c.hand.findIndex(h => h.id === 'phoenixblood');
+    if (pi >= 0) Engine.playCard(run, pi, 0);
+    c.enemies[0].statuses.str = 200;
+    c.enemies[0].move = 'chomp';
+    Engine.endTurn(run);
+    assert(run.screen !== 'gameover', '不死鸟之血未触发重生');
+    assert(run.player.hp === 50, `重生血量异常: ${run.player.hp}`);
+    // 第二次死亡应真正死亡
+    c.enemies[0].statuses.str = 200;
+    run.player.hp = 10;
+    c.player.block = 0;
+    Engine.endTurn(run);
+    assert(run.screen === 'gameover', '重生后应可再次死亡');
+  }
+  // 生命转化:回合开始血换能量
+  {
+    const run = Engine.newRun('warlock', 305);
+    run.player.deck = [{ id: 'lifetransform', up: 0 }, { id: 'strike', up: 0 }];
+    forceCombat(run, ['cultist'], 'normal');
+    const c = run.combat;
+    const li = c.hand.findIndex(h => h.id === 'lifetransform');
+    if (li >= 0) Engine.playCard(run, li, 0);
+    const hpB = run.player.hp;
+    const enB = c.player.energy;
+    Engine.endTurn(run);
+    if (run.screen === 'combat') {
+      assert(hpB - run.player.hp >= 3, '生命转化未扣血');
+      assert(c.player.energy === c.player.maxEnergy + 1, `生命转化未加能量: ${c.player.energy}`);
+    }
+  }
+  // 技能包解锁门控:锁定时不出现在池中
+  {
+    GS.Unlocks.reset();
+    const locked = CARDS.pool('warrior', 'uncommon');
+    assert(!locked.includes('bloodslash'), '锁定的技能包卡进入了奖励池');
+    GS.Unlocks.unlockAll();
+    const unlocked = CARDS.pool('warrior', 'uncommon');
+    assert(unlocked.includes('bloodslash'), '解锁后技能包卡未进入奖励池');
   }
   // --- v2 联动机制测试 ---
   // 全身撞击:伤害=当前格挡
