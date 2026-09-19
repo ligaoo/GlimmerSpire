@@ -1,0 +1,22 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 机制回归(v5)
+        run: node test/v5.js
+      - name: 模糊测试与平衡护栏
+        run: node test/fuzz.js
+      - name: UI 冒烟测试
+        run: node test/uismoke.js

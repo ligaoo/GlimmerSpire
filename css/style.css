@@ -802,3 +802,33 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 .codex-item { font-size: 11px; padding: 1px 7px; border-radius: 7px; background: #241f38; color: #6b6590; }
 .codex-item.got { color: #d8e8ff; background: rgba(50, 66, 100, .8); border: 1px solid #3a4a7a; }
 .codex-ms { font-size: 12px; color: #9aa3c7; }
+
+/* ================= v6:倍速/卡组工具栏/种子/每日榜/BOSS二阶段 ================= */
+#btn-speed { margin-top: 6px; padding: 3px 12px; font-size: 12px; border-radius: 8px;
+  border: 1px solid #3a3550; background: rgba(30, 26, 48, .8); color: #b9b4d6; cursor: pointer; }
+#btn-speed.fast { border-color: #6ee7ff; color: #6ee7ff; box-shadow: 0 0 10px rgba(110, 231, 255, .3); }
+.card .branch-mark { position: absolute; top: 3px; left: 26px; z-index: 2; font-size: 10px; font-weight: bold;
+  width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%; }
+.card .branch-mark.a { background: #1d4a63; color: #6ee7ff; border: 1px solid #6ee7ff; }
+.card .branch-mark.b { background: #63281d; color: #ff9a76; border: 1px solid #ff9a76; }
+.deck-toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; }
+.deck-tool-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.deck-tool-label { font-size: 12px; color: #9aa3c7; }
+.deck-chip { padding: 2px 10px; font-size: 12px; border-radius: 999px; border: 1px solid #3a3550;
+  background: rgba(30, 26, 48, .8); color: #b9b4d6; cursor: pointer; }
+.deck-chip.active { border-color: var(--gold); color: #f0c96a; }
+.seed-row { margin: 8px 0 4px; }
+.seed-input { width: 100%; padding: 8px 12px; font-size: 14px; border-radius: 10px;
+  border: 1px solid #3a3550; background: rgba(20, 17, 34, .9); color: #d8d4ee; box-sizing: border-box; }
+.seed-input:focus { outline: none; border-color: #6ee7ff; }
+.seed-hint { font-size: 12px; color: #9aa3c7; margin-bottom: 6px; }
+.daily-board { margin-top: 8px; border-top: 1px dashed #3a3550; padding-top: 6px; }
+.daily-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #d8d4ee; line-height: 2; }
+.daily-row .rk { width: 20px; height: 20px; border-radius: 50%; background: #2b2140; text-align: center;
+  line-height: 20px; font-size: 11px; color: var(--gold); }
+.daily-row b { margin-left: auto; color: #f0c96a; }
+.boss-banner.phase2 { background: linear-gradient(135deg, rgba(120, 20, 20, .95), rgba(40, 8, 8, .95));
+  border-color: #ff5a5a; color: #ffd2d2; }
+.phase2-badge { position: absolute; top: 14px; right: 50%; transform: translateX(50%); z-index: 3;
+  background: linear-gradient(135deg, rgba(140, 40, 16, .95), rgba(60, 16, 8, .95)); border: 1px solid #ff7a45;
+  border-radius: 8px; padding: 1px 8px; font-size: 11px; color: #ffc9a3; white-space: nowrap; }

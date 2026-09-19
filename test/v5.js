@@ -175,5 +175,45 @@ for (const t of THEMES.all) {
   console.log('图鉴里程碑:', won);
 }
 
+// 11) v6:遗物图鉴
+{
+  Codex.reset();
+  const run = Engine.newThemeRun('jjk', 8, 'jj_a_itadori');
+  ok(Codex.seen('relics', 'jjkcore'), '图鉴记录初始遗物');
+  Engine.acquireRelic(run, 'mystbell');
+  ok(Codex.seen('relics', 'mystbell'), 'acquireRelic 记录图鉴');
+  const rl = Codex.statsRelics();
+  ok(rl.total >= 70, '遗物图鉴总量 ' + rl.total);
+  ok(rl.got >= 2, '遗物图鉴已见 ' + rl.got);
+}
+// 12) v6:种子确定性
+{
+  const r1 = Engine.newThemeRun('mystery', 20260919, null);
+  const r2 = Engine.newThemeRun('mystery', 20260919, null);
+  const sig = m => m.map(row => row.map(n => n.type).join(',')).join('|');
+  ok(sig(r1.map) === sig(r2.map), '同种子地图一致');
+  ok(Engine.seedFromString('12345') === 12345, '数字种子直取');
+  ok(Engine.seedFromString('abc') === Engine.seedFromString('abc'), '字符串种子稳定');
+}
+// 13) v6:每日成绩榜
+{
+  const run = Engine.newThemeRun('jjk', 7, null, { daily: 'glass' });
+  run.floorTotal = 30; run.player.stats.won = false;
+  Engine.onGameOver(run);
+  const board = Engine.dailyBoard();
+  ok(board.length >= 1 && board[0].score > 0, '每日败局入榜 score=' + (board[0] && board[0].score));
+}
+// 14) v6:BOSS 过半变身
+{
+  const run = Engine.newThemeRun('jjk', 4242, null);
+  Engine._testStartCombat(run, ['jj_kingofcurses'], 'boss');
+  const boss = run.combat.enemies[0];
+  boss.statuses.vuln = 3;
+  const half = Math.floor(boss.maxHp / 2);
+  ok(Engine._testHit(run, boss, boss.maxHp - half - 1) >= 0 && !boss._enraged, '半血以上未触发');
+  ok(Engine._testHit(run, boss, 1) >= 0 && boss._enraged === true, '过半触发变身');
+  ok((boss.statuses.str || 0) === 2, '变身后力量+2');
+  ok(!boss.statuses.vuln, '变身挣脱减益');
+}
 console.log(`\n${pass} 通过, ${fail} 失败`);
 process.exit(fail ? 1 : 0);

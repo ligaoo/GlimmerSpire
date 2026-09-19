@@ -12,12 +12,12 @@
       if (raw) {
         const d = JSON.parse(raw);
         return {
-          seen: d.seen || { cards: {}, enemies: {}, events: {}, allies: {} },
+          seen: Object.assign({ cards: {}, enemies: {}, events: {}, allies: {}, relics: {} }, d.seen || {}),
           claimed: d.claimed || {}
         };
       }
     } catch (e) { }
-    return { seen: { cards: {}, enemies: {}, events: {}, allies: {} }, claimed: {} };
+    return { seen: { cards: {}, enemies: {}, events: {}, allies: {}, relics: {} }, claimed: {} };
   }
   function save(data) {
     try { localStorage.setItem(CODEX_KEY, JSON.stringify(data)); } catch (e) { }
@@ -30,7 +30,9 @@
     { id: 'enemies_half', label: '敌人图鉴过半', pts: 150 },
     { id: 'enemies_full', label: '敌人图鉴完成', pts: 300 },
     { id: 'events_theme_half', label: '任一主题事件收集过半', pts: 100 },
-    { id: 'allies_all', label: '集齐所有联动伙伴', pts: 300 }
+    { id: 'allies_all', label: '集齐所有联动伙伴', pts: 300 },
+    { id: 'relics_half', label: '遗物图鉴过半', pts: 200 },
+    { id: 'relics_full', label: '遗物图鉴完成', pts: 500 }
   ];
 
   const Codex = {
@@ -96,6 +98,29 @@
       }
       return { total: entries.length, got: entries.filter(e => e.got).length, entries };
     },
+    statsRelics() {
+      const d = load();
+      const entries = [];
+      const RL = global.GS.RELICS;
+      if (RL && RL.all) {
+        for (const id of RL.all) {
+          const def = RL.get(id);
+          if (!def) continue;
+          entries.push({ id, name: def.name, got: !!d.seen.relics[id] });
+        }
+        // 主题专属遗物(不走 RELICS.all)
+        const TH = global.GS.THEMES;
+        if (TH) {
+          for (const t of TH.all) {
+            for (const rd of (t.relicDefs || [])) {
+              if (RL.all.includes(rd.id)) continue;
+              entries.push({ id: rd.id, name: rd.name, got: !!d.seen.relics[rd.id] });
+            }
+          }
+        }
+      }
+      return { total: entries.length, got: entries.filter(e => e.got).length, entries };
+    },
 
     // 计算并发放未领取的里程碑奖励,返回 [{label, pts}]
     claimMilestones() {
@@ -135,6 +160,9 @@
         const al = this.statsAllies();
         if (al.total && al.got >= al.total) award('allies_all');
       }
+      const rl = this.statsRelics();
+      if (rl.total && rl.got >= Math.ceil(rl.total / 2)) award('relics_half');
+      if (rl.total && rl.got >= rl.total) award('relics_full');
       save(d);
       return won;
     },

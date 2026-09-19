@@ -11,7 +11,10 @@
     return d;
   };
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // 战斗倍速:动画时长按倍率缩短(1/2/3),偏好持久化
+  let speedMult = 1;
+  try { speedMult = Math.max(1, Math.min(3, parseInt(localStorage.getItem('glimmerSpireSpeed') || '1', 10) || 1)); } catch (e) { }
+  const sleep = ms => new Promise(r => setTimeout(r, ms / speedMult));
 
   const STATUS_EXPLAIN = {
     str: ['力量', '攻击伤害 +层数'],
@@ -150,6 +153,18 @@
       };
       $('#btn-mute').textContent = AudioFX.muted ? '🔇' : '🔊';
       $('#btn-endturn').onclick = () => this.onEndTurn();
+      // 战斗倍速切换(1x/2x/3x)
+      const spdBtn = $('#btn-speed');
+      if (spdBtn) {
+        const syncSpd = () => { spdBtn.textContent = '▶ ' + speedMult + 'x'; spdBtn.classList.toggle('fast', speedMult > 1); };
+        spdBtn.onclick = () => {
+          speedMult = speedMult >= 3 ? 1 : speedMult + 1;
+          try { localStorage.setItem('glimmerSpireSpeed', String(speedMult)); } catch (e) { }
+          syncSpd();
+          this.toast('战斗速度 ' + speedMult + 'x');
+        };
+        syncSpd();
+      }
       document.addEventListener('keydown', e => this.onKey(e));
       document.addEventListener('click', e => {
         const tip = $('#tooltip');
@@ -381,6 +396,7 @@
       desc = desc.replace('{D}', dmgN !== undefined ? dmgN : '?').replace('{B}', blkN !== undefined ? blkN : '?');
       card.innerHTML = `
         <div class="cost">${costTxt}</div>
+        ${inst.up && CARDS.branchable && CARDS.branchable(inst.id) ? `<div class="branch-mark ${inst.path === 2 ? 'b' : 'a'}">${inst.path === 2 ? 'B' : 'A'}</div>` : ''}
         <div class="cname">${esc(view.name)}</div>
         <div class="cart">${{ attack: '攻击', skill: '技能', power: '能力', curse: '诅咒', status: '状态' }[view.type] || ''}</div>
         <div class="cdesc">${esc(desc)}</div>
@@ -570,6 +586,7 @@
           ${intentHtml}
           <div class="art"><span class="art-emoji">${e.art}</span><img class="enemy-img" src="assets/enemies/${e.id}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt=""></div>
           ${e.affix ? `<div class="affix-badge">${afx ? afx.art : '⚡'} ${esc(e.affixName || '词缀')}</div>` : ''}
+          ${e._enraged ? '<div class="phase2-badge">🔥 第二阶段</div>' : ''}
           <div class="name">${esc(e.name)}</div>
           <div class="hpbar"><div class="fill" style="width:${hpPct}%"></div><div class="num">${e.hp}/${e.maxHp}</div></div>
           ${e.block > 0 ? `<div class="block-badge">🛡 ${e.block}</div>` : ''}
@@ -973,7 +990,8 @@
         <span>击败敌人:<b>${run.player.stats.enemies}</b> · BOSS:<b>${run.player.stats.bosses}</b></span>
         <span>剩余金币:<b>${run.player.gold}</b></span>
         <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
-        <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>`;
+        <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>
+        <span style="font-size:12px;color:#9aa3c7">🎲 本局种子:${run.seed}(「种子挑战」可重放此局)</span>`;
       panel.appendChild(table);
       const btns = el('div', 'modal-btns');
       const again = el('button', 'primary', '再次攀登');
@@ -1005,7 +1023,8 @@
         ${run.ascension ? `<span>🪜 进阶 <b>${run.ascension}</b> 通关!</span>` : ''}
         ${run.daily ? `<span>🗓️ 每日挑战通关(积分 ×1.5)</span>` : ''}
         <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
-        <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>`;
+        <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>
+        <span style="font-size:12px;color:#9aa3c7">🎲 本局种子:${run.seed}(「种子挑战」可重放此局)</span>`;
       panel.appendChild(table);
       // v5:进阶解锁提示
       if (run.ascension !== undefined) {
@@ -1124,6 +1143,9 @@
       const dailyBtn = el('button', 'ghost', '🗓️ 每日挑战');
       dailyBtn.onclick = () => this.dailyModal();
       btns.appendChild(dailyBtn);
+      const seedBtn = el('button', 'ghost', '🎲 种子挑战');
+      seedBtn.onclick = () => this.seedModal();
+      btns.appendChild(seedBtn);
       const codexBtn = el('button', 'ghost', '📖 图鉴');
       codexBtn.onclick = () => this.codexModal();
       btns.appendChild(codexBtn);
@@ -1218,35 +1240,52 @@
       $('#modal-layer').innerHTML = '';
     },
 
-    deckModal() {
-      const run = this.run;
-      const modal = el('div', 'modal');
-      modal.appendChild(el('h3', '', `卡组(${run.player.deck.length} 张)`));
-      const list = el('div', 'card-list');
-      const sorted = [...run.player.deck].sort((a, b) => {
-        const va = CARDS.view(a), vb = CARDS.view(b);
-        return (va.cls || '').localeCompare(vb.cls || '') || va.name.localeCompare(vb.name);
-      });
-      sorted.forEach(inst => list.appendChild(this.cardEl(inst)));
-      modal.appendChild(list);
-      const btns = el('div', 'modal-btns');
-      const close = el('button', '', '关闭');
-      close.onclick = () => this.closeModal();
-      btns.appendChild(close);
-      modal.appendChild(btns);
-      this.openModal(modal);
-    },
-
-    pileModal(title, pile, sub) {
-      const modal = el('div', 'modal');
+    /* 卡组/牌堆弹窗:支持排序(默认/费用/类型/稀有度/名称)与类型筛选 */
+    cardListModal(title, pile, sub) {
+      const modal = el('div', 'modal card-list-modal');
       modal.appendChild(el('h3', '', `${title}(${pile.length} 张)${sub ? ' · ' + sub : ''}`));
       const list = el('div', 'card-list');
-      const sorted = [...pile].sort((a, b) => CARDS.view(a).name.localeCompare(CARDS.view(b).name));
-      sorted.forEach(inst => {
-        const c = this.cardEl(inst);
-        if (inst._ex) c.style.outline = '2px dashed #c05aff';
-        list.appendChild(c);
-      });
+      let sortKey = 'default', typeFilter = 'all';
+      const rarityOrder = { basic: 0, common: 1, uncommon: 2, rare: 3, special: 4 };
+      const render = () => {
+        list.innerHTML = '';
+        let arr = pile.filter(inst => typeFilter === 'all' || CARDS.view(inst).type === typeFilter);
+        arr = [...arr].sort((a, b) => {
+          const va = CARDS.view(a), vb = CARDS.view(b);
+          if (sortKey === 'cost') return (va.cost === 'X' ? 99 : va.cost) - (vb.cost === 'X' ? 99 : vb.cost) || va.name.localeCompare(vb.name);
+          if (sortKey === 'type') return va.type.localeCompare(vb.type) || va.name.localeCompare(vb.name);
+          if (sortKey === 'rarity') return (rarityOrder[va.rarity] || 0) - (rarityOrder[vb.rarity] || 0) || va.name.localeCompare(vb.name);
+          if (sortKey === 'name') return va.name.localeCompare(vb.name);
+          return (va.cls || '').localeCompare(vb.cls || '') || va.name.localeCompare(vb.name);
+        });
+        if (!arr.length) list.appendChild(el('div', 'tip-line', '没有符合条件的牌'));
+        arr.forEach(inst => {
+          const c = this.cardEl(inst);
+          if (inst._ex) c.style.outline = '2px dashed #c05aff';
+          list.appendChild(c);
+        });
+      };
+      // 工具栏:排序 + 筛选
+      const bar = el('div', 'deck-toolbar');
+      const sortOpts = [['default', '默认'], ['cost', '费用'], ['type', '类型'], ['rarity', '稀有度'], ['name', '名称']];
+      const sortBox = el('div', 'deck-tool-group');
+      sortBox.appendChild(el('span', 'deck-tool-label', '排序'));
+      for (const [k, label] of sortOpts) {
+        const b = el('button', 'deck-chip' + (sortKey === k ? ' active' : ''), label);
+        b.onclick = () => { sortKey = k; bar.querySelectorAll('.deck-tool-group:first-child .deck-chip').forEach(x => x.classList.remove('active')); b.classList.add('active'); render(); };
+        sortBox.appendChild(b);
+      }
+      bar.appendChild(sortBox);
+      const typeOpts = [['all', '全部'], ['attack', '攻击'], ['skill', '技能'], ['power', '能力']];
+      const typeBox = el('div', 'deck-tool-group');
+      typeBox.appendChild(el('span', 'deck-tool-label', '类型'));
+      for (const [k, label] of typeOpts) {
+        const b = el('button', 'deck-chip' + (typeFilter === k ? ' active' : ''), label);
+        b.onclick = () => { typeFilter = k; bar.querySelectorAll('.deck-tool-group:last-child .deck-chip').forEach(x => x.classList.remove('active')); b.classList.add('active'); render(); };
+        typeBox.appendChild(b);
+      }
+      bar.appendChild(typeBox);
+      modal.appendChild(bar);
       modal.appendChild(list);
       modal.appendChild(el('div', 'tip-line', '紫色虚线框 = 消耗区的牌'));
       const btns = el('div', 'modal-btns');
@@ -1255,7 +1294,10 @@
       btns.appendChild(close);
       modal.appendChild(btns);
       this.openModal(modal);
+      render();
     },
+    deckModal() { this.cardListModal('卡组', this.run.player.deck); },
+    pileModal(title, pile, sub) { this.cardListModal(title, pile, sub); },
 
     openPendingModal() {
       const run = this.run;
@@ -1363,6 +1405,20 @@
         `变异规则:<b style="color:#ff9a76">${esc(info.rule.name)}</b> — ${esc(info.rule.desc)}<br><br>` +
         `所有玩家使用同一固定种子,条件一致,公平比拼单局得分。<br>每日挑战得分 <b style="color:#6ee7ff">×1.5</b>。`);
       modal.appendChild(ruleBox);
+      // 今日成绩榜(前五)
+      const board = Engine.dailyBoard ? Engine.dailyBoard(info.date) : [];
+      if (board.length) {
+        const bd = el('div', 'daily-board');
+        bd.appendChild(el('div', 'duo-title', '— 🏆 今日最佳 —'));
+        const themeName = id => {
+          const t = GS.THEMES && GS.THEMES.get(id);
+          return t ? t.name : id;
+        };
+        board.forEach((r, i) => {
+          bd.appendChild(el('div', 'daily-row', `<span class="rk">${i + 1}</span><span>${esc(themeName(r.theme))}</span><span>${r.won ? '🏁 通关' : '💀'}</span><b>${r.score}</b>`));
+        });
+        modal.appendChild(bd);
+      }
       const btns = el('div', 'modal-btns');
       const go = el('button', 'primary', `接受挑战 · ${theme.name}`);
       go.onclick = () => {
@@ -1380,6 +1436,54 @@
       btns.append(go, cancel);
       modal.appendChild(btns);
       this.openModal(modal);
+    },
+
+    /* v6:种子挑战(输入种子重放/分享同一局) */
+    seedModal() {
+      const modal = el('div', 'modal');
+      modal.appendChild(el('h3', '', '🎲 种子挑战'));
+      const meta = this.selTheme ? themeMeta(GS.THEMES.get(this.selTheme)) : CLASS_META[this.selClass];
+      const wrap = el('div', 'help-content',
+        `用同一个种子开出的局完全一致(地图/敌人/奖励/事件)。<br>` +
+        `输入朋友分享的种子即可重放同一局,通关后把种子和成绩分享出去比拼!`);
+      modal.appendChild(wrap);
+      const row = el('div', 'seed-row');
+      const input = el('input', 'seed-input');
+      input.placeholder = '种子(数字或任意文字,留空随机)';
+      input.value = '';
+      row.appendChild(input);
+      const seedHint = el('div', 'seed-hint', '');
+      const updateHint = () => {
+        const seed = Engine.seedFromString(input.value);
+        seedHint.textContent = '将使用种子: ' + seed;
+      };
+      updateHint();
+      input.oninput = updateHint;
+      modal.appendChild(row);
+      modal.appendChild(seedHint);
+      const use = el('div', 'tip-line', `将使用当前选择:${meta.name}${this.selDiff && this.selDiff !== 'normal' ? ' · ' + (this.selDiff === 'easy' ? '轻松' : '困难') : ''}${this.selAsc ? ' · 进阶' + this.selAsc : ''}`);
+      modal.appendChild(use);
+      const btns = el('div', 'modal-btns');
+      const go = el('button', 'primary', `开始 · ${meta.name}`);
+      go.onclick = () => {
+        const seed = Engine.seedFromString(input.value);
+        this.closeModal();
+        AudioFX.resume();
+        AudioFX.play('relic');
+        this.gameoverHandled = false;
+        const opts = { difficulty: this.selDiff || 'normal', ascension: this.selAsc || 0 };
+        this.run = this.selTheme
+          ? Engine.newThemeRun(this.selTheme, seed, this.selAlly || undefined, opts)
+          : Engine.newRun(this.selClass, seed, opts);
+        this.toast('本局种子: ' + seed);
+        this.update();
+      };
+      const cancel = el('button', 'ghost', '关闭');
+      cancel.onclick = () => this.closeModal();
+      btns.append(go, cancel);
+      modal.appendChild(btns);
+      this.openModal(modal);
+      setTimeout(() => { try { input.focus(); } catch (e) { } }, 50);
     },
 
     /* v5:图鉴 */
@@ -1402,7 +1506,8 @@
         ['🃏 卡牌', Codex.statsCards()],
         ['👹 敌人', Codex.statsEnemies()],
         ['❓ 事件', Codex.statsEvents()],
-        ['🤝 伙伴', Codex.statsAllies()]
+        ['🤝 伙伴', Codex.statsAllies()],
+        ['💎 遗物', Codex.statsRelics ? Codex.statsRelics() : { total: 0, got: 0, entries: [] }]
       ];
       for (const [title, st] of sections) {
         const sec = el('div', 'codex-sec');
@@ -1653,6 +1758,13 @@
               document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake');
               AudioFX.play('bigattack');
               await sleep(600);
+            } else if (ev.fx === 'boss2') {
+              const banner = el('div', 'boss-banner phase2', `⚠ ${esc(ev.name)} · 第二阶段 ⚠<small>力量提升,减益挣脱</small>`);
+              document.body.appendChild(banner);
+              setTimeout(() => banner.remove(), 1800);
+              document.body.classList.remove('shake'); void document.body.offsetWidth; document.body.classList.add('shake');
+              AudioFX.play('bigattack');
+              await sleep(500);
             }
             break;
           }

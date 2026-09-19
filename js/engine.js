@@ -325,6 +325,18 @@
       pushEv(run, { t: 'dmg', who: 'enemy', uid: e.uid, v: rem });
       if (e.hp <= 0) { e.hp = 0; }
     }
+    // v6:BOSS 过半变身(通用怒气) —— 换挡时刻:力量提升并挣脱减益
+    if (e.isBoss && !e.dead && !e._enraged) {
+      const d0 = enemyDef(e);
+      const at = (d0 && d0.enrageAt) || 0.5;
+      if (e.hp > 0 && e.hp <= Math.floor(e.maxHp * at)) {
+        e._enraged = true;
+        addStatus(run, e, 'str', 2);
+        for (const k of ['vuln', 'weak', 'frail']) delete e.statuses[k];
+        pushEv(run, { t: 'fx', fx: 'boss2', name: e.name });
+        pushEv(run, { t: 'text', msg: '⚠️ ' + e.name + ' 挣脱束缚,进入了第二阶段!(力量 +2)' });
+      }
+    }
     // 敌方荆棘反伤(走玩家格挡)
     const thorns = statusOf(e, 'thorns');
     if (thorns > 0 && !(opts && opts.noRetaliate)) damagePlayer(run, thorns, true);
@@ -1706,7 +1718,10 @@
       run.evts = [];
       this._run = run;
       bumpStats('runs');
-      if (GS.Codex) for (const x of run.player.deck) GS.Codex.record('cards', x.id);
+      if (GS.Codex) {
+        for (const x of run.player.deck) GS.Codex.record('cards', x.id);
+        for (const r of run.player.relics) GS.Codex.record('relics', r);
+      }
       saveRun(run);
       return run;
     },
@@ -1757,6 +1772,7 @@
       if (GS.Codex) {
         for (const x of run.player.deck) GS.Codex.record('cards', x.id);
         for (const aid of run.player.allies || []) GS.Codex.record('allies', aid);
+        for (const r of run.player.relics) GS.Codex.record('relics', r);
       }
       saveRun(run);
       return run;
@@ -2277,6 +2293,7 @@
     acquireRelic(run, id) {
       if (owned(run, id)) return;
       run.player.relics.push(id);
+      if (GS.Codex) GS.Codex.record('relics', id);
       const d = RELICS.get(id);
       if (d.potionSlots) {
         run.player.potionSlots += d.potionSlots;
@@ -2783,6 +2800,7 @@
   Engine._testGenShop = genShop; // 测试钩子
   Engine._testSpawn = spawnEnemy; // 测试钩子
   Engine._testRewardCards = makeRewardCards; // 测试钩子
+  Engine._testHit = hitEnemy; // 测试钩子
   Engine.bumpStats = bumpStats;
   Engine.onGameOver = function (run) {
     bumpStats('losses');
@@ -2790,6 +2808,7 @@
     const s = loadStats();
     if (sc > s.best) { s.best = sc; saveStats(s); }
     Engine.awardRunPoints(run);
+    Engine.recordDailyResult(run);
     saveRun(null);
   };
   // 积分:每局结束按得分发放,用于解锁技能包
@@ -2842,7 +2861,33 @@
       s.daily.won = true;
       s.daily.score = Engine.score(run);
       saveStats(s);
+      Engine.recordDailyResult(run);
     }
+  };
+  // v6:每日挑战当日成绩榜(前五)
+  Engine.recordDailyResult = function (run) {
+    if (!run.daily) return;
+    const s = loadStats();
+    const ds = todayStr();
+    s.dailyList = s.dailyList || {};
+    const list = s.dailyList[ds] || [];
+    list.push({ score: Engine.score(run), theme: run.theme || run.cls, won: !!run.player.stats.won });
+    list.sort((a, b) => b.score - a.score);
+    s.dailyList[ds] = list.slice(0, 5);
+    saveStats(s);
+  };
+  Engine.dailyBoard = function (dateStr) {
+    const s = loadStats();
+    return (s.dailyList && s.dailyList[dateStr || todayStr()]) || [];
+  };
+  // v6:种子挑战 —— 字符串转数字种子(纯数字直取,否则哈希)
+  Engine.seedFromString = function (str) {
+    str = String(str == null ? '' : str).trim();
+    if (!str) return RNG.newSeed();
+    if (/^\d+$/.test(str)) return parseInt(str, 10) % 2147483647;
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+    return h % 2147483647;
   };
   function todayStr() {
     const d = new Date();
