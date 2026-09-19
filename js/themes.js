@@ -2363,6 +2363,1031 @@
   }
   const ALLY_CAP = 4;
 
+  /* ================================================================
+     v5 内容扩展:新卡牌(扩池至 ~35) / up2 双升级分支 /
+     主题专属事件 / 伙伴主动技能与双人羁绊
+     ================================================================ */
+
+  /* ---------------- 神秘复苏:新卡 ×13 ---------------- */
+  def({
+    id: 'mn_shadeshield', cls: 'mystery', type: 'skill', rarity: 'common', cost: 1, block: 8, target: 'none',
+    name: '鬼影庇护', desc: '获得 {B} 点格挡,魂火 +1。',
+    up: { block: 11, desc: '获得 {B} 点格挡,魂火 +1。' },
+    up2: { cost: 0, block: 5, name: '鬼影庇护·轻', desc: '获得 {B} 点格挡,魂火 +1。' },
+    play(A) { A.gainBlock(); A.addSoulfire(1); }
+  });
+  def({
+    id: 'mn_ghostclaw', cls: 'mystery', type: 'attack', rarity: 'common', cost: 1, dmg: 8, target: 'enemy',
+    name: '鬼爪', desc: '造成 {D} 点伤害;若魂火 ≥3,伤害 +3。',
+    up: { dmg: 11, desc: '造成 {D} 点伤害;若魂火 ≥3,伤害 +3。' },
+    up2: { dmg: 5, hits: 2, name: '鬼爪·连', desc: '造成 2 次 {D} 点伤害;若魂火 ≥3,每次伤害 +3。', play(A) { if (A.soulfire() >= 3) A.attackBonus(3); A.attack(null, { times: 2 }); } },
+    play(A) { if (A.soulfire() >= 3) A.attackBonus(3); A.attack(); }
+  });
+  def({
+    id: 'mn_fireeye', cls: 'mystery', type: 'skill', rarity: 'common', cost: 0, target: 'none',
+    name: '燃目', desc: '阴阳眼 +2,获得 4 点格挡。',
+    up: { desc: '阴阳眼 +3,获得 4 点格挡。' },
+    play(A, inst) { A.addEye(inst.up && inst.path !== 2 ? 3 : 2); A.gainBlock(4); }
+  });
+  def({
+    id: 'mn_wraithwall', cls: 'mystery', type: 'skill', rarity: 'common', cost: 1, block: 5, target: 'none',
+    name: '亡者之壁', desc: '获得 {B} 点格挡,每层魂火额外 +1 格挡。',
+    up: { block: 7, desc: '获得 {B} 点格挡,每层魂火额外 +1 格挡。' },
+    up2: { block: 4, name: '亡者之壁·厚', desc: '获得 {B} 点格挡,每层魂火额外 +2 格挡。', play(A) { A.gainBlock(); A.gainBlock(A.soulfire() * 2); } },
+    play(A) { A.gainBlock(); A.gainBlock(A.soulfire()); }
+  });
+  def({
+    id: 'mn_ghostfire', cls: 'mystery', type: 'attack', rarity: 'common', cost: 2, dmg: 12, target: 'enemy',
+    name: '鬼火焚身', desc: '造成 {D} 点伤害,消耗所有魂火,每层 +2 伤害。',
+    up: { dmg: 14, desc: '造成 {D} 点伤害,消耗所有魂火,每层 +3 伤害。' },
+    up2: { dmg: 8, target: 'all', name: '鬼火焚身·燎原', desc: '对所有敌人造成 {D} 点伤害,消耗所有魂火,每层 +2 伤害。', play(A, inst) { A.attackBonus(A.spendSoulfire(99) * 2); A.attackAll(); } },
+    play(A, inst) { A.attackBonus(A.spendSoulfire(99) * (inst.up ? 3 : 2)); A.attack(); }
+  });
+  def({
+    id: 'mn_grudge', cls: 'mystery', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 6, hits: 2, target: 'enemy',
+    name: '怨念双袭', desc: '造成 2 次 {D} 点伤害。',
+    up: { dmg: 8, desc: '造成 2 次 {D} 点伤害。' },
+    play(A) { A.attack(null, { times: 2 }); }
+  });
+  def({
+    id: 'mn_soulchain', cls: 'mystery', type: 'skill', rarity: 'uncommon', cost: 1, target: 'all',
+    name: '锁魂链', desc: '所有敌人获得 2 层易伤,魂火 +2。',
+    up: { desc: '所有敌人获得 3 层易伤,魂火 +2。' },
+    play(A, inst) { A.applyAll('vuln', inst.up ? 3 : 2); A.addSoulfire(2); }
+  });
+  def({
+    id: 'mn_seethrough', cls: 'mystery', type: 'skill', rarity: 'uncommon', cost: 0, exhaust: true, target: 'none',
+    name: '天眼通', desc: '抽 2 张牌,阴阳眼 +1。消耗。',
+    up: { desc: '抽 3 张牌,阴阳眼 +1。消耗。' },
+    play(A, inst) { A.draw(inst.up ? 3 : 2); A.addEye(1); }
+  });
+  def({
+    id: 'mn_soulmirror', cls: 'mystery', type: 'skill', rarity: 'uncommon', cost: 2, block: 10, target: 'none',
+    name: '照魂镜壁', desc: '获得 {B} 点格挡,每层魂火额外 +2 格挡。',
+    up: { block: 14, desc: '获得 {B} 点格挡,每层魂火额外 +2 格挡。' },
+    play(A) { A.gainBlock(); A.gainBlock(A.soulfire() * 2); }
+  });
+  def({
+    id: 'mn_hungryghost', cls: 'mystery', type: 'attack', rarity: 'rare', cost: 2, dmg: 10, target: 'enemy',
+    name: '饿鬼吞魂', desc: '造成 {D} 点伤害;若击杀敌人,魂火 +3。',
+    up: { dmg: 14, desc: '造成 {D} 点伤害;若击杀敌人,魂火 +3。' },
+    play(A) { const killed = A.attack(); if (killed) { A.addSoulfire(3); } }
+  });
+  def({
+    id: 'mn_yinyangmaster', cls: 'mystery', type: 'power', rarity: 'rare', cost: 3, target: 'none',
+    name: '阴阳师', desc: '每回合开始时,魂火 +2。',
+    up: { cost: 2, desc: '每回合开始时,魂火 +2。' },
+    up2: { cost: 2, name: '阴阳师·觉醒', desc: '每回合开始时,魂火 +1、阴阳眼 +1。', play(A) { A.applySelf('soulgain', 1); A.applySelf('eyeritual', 1); } },
+    play(A) { A.applySelf('soulgain', 2); }
+  });
+  def({
+    id: 'mn_requiem', cls: 'mystery', type: 'skill', rarity: 'rare', cost: 1, target: 'none',
+    name: '安魂曲', desc: '触发两次鬼物效果。',
+    up: { cost: 0, desc: '触发两次鬼物效果。' },
+    up2: { name: '安魂曲·镇', desc: '触发三次鬼物效果,魂火 +2。', play(A) { A.addSoulfire(2); A.triggerGhost(); A.triggerGhost(); A.triggerGhost(); } },
+    play(A) { A.triggerGhost(); A.triggerGhost(); }
+  });
+  def({
+    id: 'mn_windride', cls: 'mystery', type: 'skill', rarity: 'common', cost: 0, exhaust: true, target: 'none',
+    name: '阴风步', desc: '抽 1 张牌,魂火 +1。消耗。',
+    up: { desc: '抽 2 张牌,魂火 +1。消耗。' },
+    play(A, inst) { A.draw(inst.up ? 2 : 1); A.addSoulfire(1); }
+  });
+
+  MYST.pool.push('mn_shadeshield', 'mn_ghostclaw', 'mn_fireeye', 'mn_wraithwall', 'mn_ghostfire',
+    'mn_windride', 'mn_grudge', 'mn_soulchain', 'mn_seethrough', 'mn_soulmirror',
+    'mn_hungryghost', 'mn_yinyangmaster', 'mn_requiem');
+
+  MYST.events = [
+    {
+      id: 'mn_ev_midnight', name: '午夜凶铃', art: '📞',
+      text: '荒村的电话亭自己响了。铃声拖得很长,像有人贴着听筒呼吸。',
+      choices: [
+        { label: '接听', hint: '魂火指引:获得 1 张主题稀有牌,失去 8 点生命',
+          fx(A) { A.loseHp(8); A.gainThemeCard('rare'); return '电话那头传来湿漉漉的低语,一张牌从听筒里滑了出来。'; } },
+        { label: '砸毁电话亭', hint: '获得 40~60 金币',
+          fx(A) { const g = A.randInt(40, 60); A.gainGold(g); return '碎片里散落着前任机主藏下的 ' + g + ' 金币。'; } },
+        { label: '挂断离开', fx() { return '铃声在你背后又响了三声,然后停了。'; } }
+      ]
+    },
+    {
+      id: 'mn_ev_paperwedding', name: '纸新娘的花轿', art: '🏮',
+      text: '花轿停在村口,轿帘里伸出一只纸糊的手,掌心写着「替」字。',
+      choices: [
+        { label: '掀开轿帘', hint: '获得遗物,污染 +2',
+          fx(A) { A.addCurse(2); const r = A.randomRelic(); return r ? '轿中的东西认了你为主,污染却缠上了你。' : '轿子里空空如也,只有怨气。'; } },
+        { label: '替她烧一炷香', hint: '污染 -3,回复 25% 生命',
+          fx(A) { A.reduceCurse(3); A.heal(Math.floor(A.maxHp() * 0.25)); return '纸手安静地缩了回去。你感到久违的暖意。'; } },
+        { label: '绕开走', fx() { return '花轿在你身后无声地消失了。'; } }
+      ]
+    },
+    {
+      id: 'mn_ev_ghostmarket', name: '鬼市', art: '🏮',
+      text: '子时的集市灯火通明,摊主们都没有影子。他们只收「阳气」。',
+      choices: [
+        { label: '卖出一缕阳气', hint: '失去 10 点生命,获得 110 金币',
+          fx(A) { A.loseHp(10); A.gainGold(110); return '铜钱冰冷刺骨,但你的钱包鼓了。'; } },
+        { label: '买一份鬼物手记', hint: '花费 60 金币,升级 2 张随机牌',
+          can(g) { return g.gold() >= 60; },
+          fx(A) { A.loseGold(60); const n = A.upgradeRandom(2); return n + ' 张牌在手记的怨气中开光了。'; } },
+        { label: '闭眼走过去', fx() { return '你数着自己的脚步声走完了整条街。'; } }
+      ]
+    },
+    {
+      id: 'mn_ev_undertaker', name: '守棺人', art: '⚰️',
+      text: '老守棺人坐在棺材铺门口打盹。「想借一口?」他没睁眼,「拿东西换。」',
+      choices: [
+        { label: '用生命换棺', hint: '失去 12 点生命,获得最大生命 +10',
+          fx(A) { A.loseHp(12); A.addMaxHp(10); return '躺过棺材的人,命会变得很硬。'; } },
+        { label: '帮他守一夜', hint: '回复 30% 生命,获得 2 瓶药水',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.3)); A.gainPotion(); A.gainPotion(); return '一夜无事。临走时老人塞给你两瓶药。'; } },
+        { label: '离开', fx() { return '「不借也好,」他翻了个身,「棺材借出去,回来的都不太对。」'; } }
+      ]
+    },
+    {
+      id: 'mn_ev_soulfirewell', name: '魂火古井', art: '🕳️',
+      text: '井底浮着点点蓝火。俯身看去,火焰里映出你自己的脸——在对你笑。',
+      choices: [
+        { label: '饮下井水', hint: '获得 3 张主题普通牌',
+          fx(A) { A.gainThemeCard('common'); A.gainThemeCard('common'); A.gainThemeCard('common'); return '井水又冷又甜,三个陌生的名字浮上你的掌心。'; } },
+        { label: '以魂火引路', hint: '50%:获得主题稀有牌 / 50%:得到 1 张诅咒',
+          fx(A) { if (A.chance(0.5)) { A.gainThemeCard('rare'); return '魂火顺从地凝成了一张牌。'; } A.curse('decay'); return '井里的东西咬了你一口。'; } },
+        { label: '盖回井盖', fx() { return '有些东西,不看为妙。'; } }
+      ]
+    },
+    {
+      id: 'mn_ev_ghostschool', name: '深夜教室', art: '🏫',
+      text: '黑板上用粉笔写着你的名字,后面跟着一道没写完的题:「活着的理由是——」',
+      choices: [
+        { label: '写下答案', hint: '最大生命 +12,失去 8 点生命',
+          fx(A) { A.loseHp(8); A.addMaxHp(12); return '粉笔自己写下了「还想再活」。教室的门开了。'; } },
+        { label: '擦掉名字', hint: '移除 1 张牌',
+          fx(A) { A.removeCard(); return '名字消失的瞬间,有什么东西从卡组里被带走了。'; } },
+        { label: '转身逃走', hint: '回复 15 点生命',
+          fx(A) { A.heal(15); return '你狂奔出校门,心跳如鼓——至少你还活着。'; } }
+      ]
+    }
+  ];
+
+  MYST.duos = [
+    { ids: ['mn_a_dog', 'mn_a_dream'], name: '人鬼同心', note: '战斗开始时,魂火 +3',
+      combatStart(A) { A.soulfire(3); } },
+    { ids: ['mn_a_headless', 'mn_a_jiang'], name: '阴阳相济', note: '每场战斗胜利后,回复 8 点生命',
+      onVictory(A) { A.heal(8); } }
+  ];
+
+  ALLY_MAP.mn_a_dog.active = { name: '忠犬扑杀', desc: '对随机敌人造成 6 点伤害', fx(A) { A.dmgRandom(6); } };
+  ALLY_MAP.mn_a_dream.active = { name: '鬼梦庇护', desc: '获得 8 点格挡', fx(A) { A.block(8); } };
+  ALLY_MAP.mn_a_headless.active = { name: '无头索命', desc: '随机敌人 2 层易伤并造成 3 点伤害', fx(A) { A.vulnRandom(2); A.dmgRandom(3); } };
+  ALLY_MAP.mn_a_jiang.active = { name: '江艳的晚餐', desc: '回复 8 点生命', fx(A) { A.heal(8); } };
+  ALLY_MAP.mn_a_zhang.active = { name: '讨债电话', desc: '获得 25 金币,对所有敌人造成 3 点伤害', fx(A) { A.gold(25); A.dmgAll(3); } };
+
+  /* ---------------- 咒术回战:新卡 ×13 ---------------- */
+  def({
+    id: 'jj_quickchant', cls: 'jjk', type: 'skill', rarity: 'common', cost: 0, target: 'none',
+    name: '瞬发咒词', desc: '咒力 +2,抽 1 张牌。',
+    up: { desc: '咒力 +3,抽 1 张牌。' },
+    up2: { desc: '咒力 +2,抽 2 张牌。', play(A) { A.gainCe(2); A.draw(2); } },
+    play(A, inst) { A.gainCe(inst.up && inst.path !== 2 ? 3 : 2); A.draw(1); }
+  });
+  def({
+    id: 'jj_stray', cls: 'jjk', type: 'attack', rarity: 'common', cost: 1, dmg: 7, target: 'enemy',
+    name: '杂鱼清扫', desc: '造成 {D} 点伤害,咒力 +1。',
+    up: { dmg: 10, desc: '造成 {D} 点伤害,咒力 +1。' },
+    play(A) { A.attack(); A.gainCe(1); }
+  });
+  def({
+    id: 'jj_barrier', cls: 'jjk', type: 'skill', rarity: 'common', cost: 1, block: 8, target: 'none',
+    name: '咒力屏障', desc: '获得 {B} 点格挡,咒力 +1。',
+    up: { block: 11, desc: '获得 {B} 点格挡,咒力 +1。' },
+    play(A) { A.gainBlock(); A.gainCe(1); }
+  });
+  def({
+    id: 'jj_palm', cls: 'jjk', type: 'attack', rarity: 'common', cost: 2, dmg: 14, tech: true, target: 'enemy',
+    name: '咒拳·冲', desc: '造成 {D} 点伤害(咒术,可触发黑闪)。',
+    up: { dmg: 18, desc: '造成 {D} 点伤害(咒术,可触发黑闪)。' },
+    play(A) { A.attack(); }
+  });
+  def({
+    id: 'jj_blitz', cls: 'jjk', type: 'attack', rarity: 'common', cost: 0, dmg: 4, tech: true, target: 'enemy',
+    name: '疾走咒拳', desc: '造成 {D} 点伤害(咒术,可触发黑闪)。',
+    up: { dmg: 7, desc: '造成 {D} 点伤害(咒术,可触发黑闪)。' },
+    play(A) { A.attack(); }
+  });
+  def({
+    id: 'jj_reversal', cls: 'jjk', type: 'skill', rarity: 'uncommon', cost: 1, target: 'none',
+    name: '简易领域·疗', desc: '回复 8 点生命,领域 -2。',
+    up: { desc: '回复 12 点生命,领域 -2。' },
+    up2: { name: '简易领域·极', desc: '回复 20 点生命,领域 -2。', play(A) { A.heal(20); A.field(-2); } },
+    play(A, inst) { A.heal(inst.up ? 12 : 8); A.field(-2); }
+  });
+  def({
+    id: 'jj_chainfist', cls: 'jjk', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 5, hits: 2, tech: true, target: 'enemy',
+    name: '连环咒拳', desc: '造成 2 次 {D} 点伤害(咒术,可触发黑闪)。',
+    up: { dmg: 7, desc: '造成 2 次 {D} 点伤害(咒术,可触发黑闪)。' },
+    play(A) { A.attack(null, { times: 2 }); }
+  });
+  def({
+    id: 'jj_domaintrap', cls: 'jjk', type: 'skill', rarity: 'uncommon', cost: 2, target: 'all',
+    name: '束缚结界', desc: '所有敌人弱点被看穿(2 层),领域 +2。',
+    up: { desc: '所有敌人弱点被看穿(3 层),领域 +2。' },
+    play(A, inst, t) { A.applyAll('weakness', inst.up ? 3 : 2); A.field(2); }
+  });
+  def({
+    id: 'jj_ceflow', cls: 'jjk', type: 'power', rarity: 'uncommon', cost: 2, target: 'none',
+    name: '咒力流转', desc: '每回合开始时,咒力 +1。',
+    up: { desc: '每回合开始时,咒力 +2。' },
+    play(A, inst) { A.applySelf('cegen', inst.up ? 2 : 1); }
+  });
+  def({
+    id: 'jj_maxoutput', cls: 'jjk', type: 'attack', rarity: 'rare', cost: 2, dmg: 6, target: 'enemy',
+    name: '咒力满输出', desc: '造成 {D} 点伤害,消耗所有咒力,每点 +4 伤害。',
+    up: { desc: '造成 {D} 点伤害,消耗所有咒力,每点 +6 伤害。' },
+    up2: { dmg: 4, target: 'all', name: '咒力满输出·界', desc: '对所有敌人造成 {D} 点伤害,消耗所有咒力,每点 +4 伤害。', play(A) { A.attackBonus(A.spendCeAll() * 4); A.attackAll(); } },
+    play(A, inst) { A.attackBonus(A.spendCeAll() * (inst.up ? 6 : 4)); A.attack(); }
+  });
+  def({
+    id: 'jj_sixeyespower', cls: 'jjk', type: 'power', rarity: 'rare', cost: 3, target: 'none',
+    name: '六眼', desc: '获得 3 层六眼(每回合咒力 +2,25 层以上 +3)。',
+    up: { cost: 2, desc: '获得 3 层六眼(每回合咒力 +2,25 层以上 +3)。' },
+    play(A) { A.applySelf('sixEyes', 3); }
+  });
+  def({
+    id: 'jj_bind', cls: 'jjk', type: 'skill', rarity: 'common', cost: 1, target: 'enemy',
+    name: '缚咒禁锢', desc: '敌人被封锁 1 回合。',
+    up: { cost: 0, desc: '敌人被封锁 1 回合。' },
+    play(A, inst, t) { A.applyTo(t, 'sealAction', 1); }
+  });
+  def({
+    id: 'jj_territory', cls: 'jjk', type: 'skill', rarity: 'rare', cost: 1, target: 'none',
+    name: '领域压制', desc: '领域 -3,咒力 +4。',
+    up: { desc: '领域 -5,咒力 +4。' },
+    play(A, inst) { A.field(inst.up ? -5 : -3); A.gainCe(4); }
+  });
+
+  JJK.pool.push('jj_quickchant', 'jj_stray', 'jj_barrier', 'jj_palm', 'jj_blitz', 'jj_bind',
+    'jj_reversal', 'jj_chainfist', 'jj_domaintrap', 'jj_ceflow',
+    'jj_maxoutput', 'jj_sixeyespower', 'jj_territory');
+
+  JJK.events = [
+    {
+      id: 'jj_ev_cursewomb', name: '咒胎九相图', art: '🥚',
+      text: '仓库角落封着一枚咒胎,隔着结界都能听见它孵化前的胎动。',
+      choices: [
+        { label: '吞下咒胎', hint: '失去 8 点生命,获得 1 张主题稀有牌',
+          can(g) { return g.hp() > 8; },
+          fx(A) { A.loseHp(8); A.gainThemeCard('rare'); return '咒力顺着喉咙烧进四肢,你得到了不属于人的力量。'; } },
+        { label: '加固封印', hint: '领域值下降:本场探索污染 -3',
+          fx(A) { A.reduceCurse(3); return '你重画了封印。至少这个晚上,它出不来。'; } },
+        { label: '上报高专', hint: '获得 55 金币(悬赏金)',
+          fx(A) { A.gainGold(55); return '窗外的乌鸦衔来了信封,里面有定额悬赏金。'; } }
+      ]
+    },
+    {
+      id: 'jj_ev_vendormachine', name: '高专贩卖机', art: '🥤',
+      text: '深夜的贩卖机还在运作。屏幕上滚动着一行字:「今天的运气值多少钱?」',
+      choices: [
+        { label: '投 30 金币', hint: '70%:获得随机遗物 / 30%:获得 2 瓶药水',
+          can(g) { return g.gold() >= 30; },
+          fx(A) { A.loseGold(30); if (A.chance(0.7)) { const r = A.randomRelic(); return r ? '掉出来一件带着咒力残温的遗物。' : '什么也没掉出来。'; } A.gainPotion(); A.gainPotion(); return '两瓶药水咣当落下。也算走运。'; } },
+        { label: '踹一脚', hint: '50%:获得 50 金币 / 50%:失去 6 点生命',
+          fx(A) { if (A.chance(0.5)) { A.gainGold(50); return '零钱哗啦啦掉了出来。'; } A.loseHp(6); return '机器漏出的咒力电了你一下。'; } },
+        { label: '无视', fx() { return '你选择相信「深夜贩卖机杀人事件」的都市传说。'; } }
+      ]
+    },
+    {
+      id: 'jj_ev_domainduel', name: '领域对峙', art: '⚫',
+      text: '特级咒灵拦住去路,空气像玻璃一样开始弯曲。「领域展开——」',
+      choices: [
+        { label: '以领域对轰', hint: '失去 10 点生命,获得 2 张主题罕见牌',
+          can(g) { return g.hp() > 10; },
+          fx(A) { A.loseHp(10); A.gainThemeCard('uncommon'); A.gainThemeCard('uncommon'); return '必中必杀对轰之后,你捡回了两式咒术。'; } },
+        { label: '强行突围', hint: '75%:无事通过 / 25%:失去 20 点生命',
+          fx(A) { if (A.chance(0.75)) return '你在领域闭合前的一瞬滑了出去。'; A.loseHp(20); return '闭合的边界从你身上碾了过去。'; } },
+        { label: '原地静坐', hint: '回复 20% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.2)); return '对方似乎被你的坦然搞得不知所措,领域自己散了。'; } }
+      ]
+    },
+    {
+      id: 'jj_ev_blackflash_class', name: '黑闪特训', art: '⚫',
+      text: '训练场中央摆着特制咒骸。东堂教练抱着手臂:「来,感受那个 2.5 次方的平方!」',
+      choices: [
+        { label: '特训到吐', hint: '失去 8 点生命,升级 2 张随机牌',
+          fx(A) { A.loseHp(8); const n = A.upgradeRandom(2); return n + ' 张牌在无数次挥拳中掌握了「拍击」的误差为零!'; } },
+        { label: '摸鱼', hint: '回复 15 点生命',
+          fx(A) { A.heal(15); return '你在场边喝了整瓶运动饮料。教练假装没看见。'; } }
+      ]
+    },
+    {
+      id: 'jj_ev_fingerbearer', name: '指粹持有者', art: '🖕',
+      text: '一只特级咒灵正在吞噬「宿傩之指」。它看你的眼神,像看下一顿饭。',
+      choices: [
+        { label: '祓除它,夺取手指', hint: '失去 10% 当前生命,获得遗物',
+          fx(A) { A.loseHp(Math.max(3, Math.floor(A.hp() * 0.10))); const r = A.randomRelic(); return r ? '祓除完成。手指在你掌心发烫。' : '祓除完成,但手指化为飞灰。'; } },
+        { label: '放它离开', hint: '污染 -2,回复 20 点生命',
+          fx(A) { A.reduceCurse(2); A.heal(20); return '有时候,「不做」也是一种咒术。你的身体轻松了不少。'; } }
+      ]
+    },
+    {
+      id: 'jj_ev_shibuya_station', name: '涩谷站台', art: '🚇',
+      text: '末班车的站台上空无一人,只有一张海报:「今夜,涩谷封锁。」',
+      choices: [
+        { label: '进入封锁区', hint: '获得 90~130 金币,污染 +2',
+          fx(A) { const g = A.randInt(90, 130); A.gainGold(g); A.addCurse(2); return '你在混乱的战场缝隙里捡到了 ' + g + ' 金币。'; } },
+        { label: '疏散平民', hint: '回复 25% 生命,最大生命 +5',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.25)); A.addMaxHp(5); return '人们感谢你。这份心意让你更坚韧。'; } },
+        { label: '坐末班车离开', fx() { return '车门关闭。玻璃上倒映出你的脸,还有身后一闪而过的东西。'; } }
+      ]
+    }
+  ];
+
+  JJK.duos = [
+    { ids: ['jj_a_itadori', 'jj_a_megumi'], name: '师兄弟', note: '战斗开始时,咒力 +3',
+      combatStart(A) { A.ce(3); } },
+    { ids: ['jj_a_nobara', 'jj_a_nanami'], name: '猎场清扫', note: '战斗开始时,所有敌人弱点被看穿(1 层)',
+      combatStart(A) { A.weaknessAll(1); } }
+  ];
+
+  ALLY_MAP.jj_a_itadori.active = { name: '黑闪锤击', desc: '对随机敌人造成 9 点伤害,咒力 +2', fx(A) { A.dmgRandom(9); A.ce(2); } };
+  ALLY_MAP.jj_a_megumi.active = { name: '玉犬突袭', desc: '对所有敌人造成 5 点伤害', fx(A) { A.dmgAll(5); } };
+  ALLY_MAP.jj_a_nobara.active = { name: '芻灵钉刺', desc: '随机敌人 3 层易伤并造成 4 点伤害', fx(A) { A.vulnRandom(3); A.dmgRandom(4); } };
+  ALLY_MAP.jj_a_nanami.active = { name: '七海的效率', desc: '获得 10 点格挡', fx(A) { A.block(10); } };
+  ALLY_MAP.jj_a_panda.active = { name: '熊猫铁壁', desc: '获得 8 点格挡并回复 4 点生命', fx(A) { A.block(8); A.heal(4); } };
+
+  /* ---------------- 从零开始的异世界:新卡 ×13 ---------------- */
+  def({
+    id: 'rz_icelance', cls: 'rezero', type: 'attack', rarity: 'common', cost: 1, dmg: 7, target: 'enemy',
+    name: '冰枪术', desc: '造成 {D} 点伤害;若已缔结精灵,伤害 +3。',
+    up: { dmg: 10, desc: '造成 {D} 点伤害;若已缔结精灵,伤害 +3。' },
+    play(A) { if (A.ghostName()) A.attackBonus(3); A.attack(); }
+  });
+  def({
+    id: 'rz_elishield', cls: 'rezero', type: 'skill', rarity: 'common', cost: 1, block: 8, target: 'none',
+    name: '精灵护盾', desc: '获得 {B} 点格挡;若已缔结精灵,额外 +3。',
+    up: { block: 11, desc: '获得 {B} 点格挡;若已缔结精灵,额外 +3。' },
+    play(A) { A.gainBlock(); if (A.ghostName()) A.gainBlock(3); }
+  });
+  def({
+    id: 'rz_manadraw', cls: 'rezero', type: 'skill', rarity: 'common', cost: 0, exhaust: true, target: 'none',
+    name: '玛那汲取', desc: '抽 2 张牌。消耗。',
+    up: { desc: '抽 3 张牌。消耗。' },
+    play(A, inst) { A.draw(inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'rz_bollist', cls: 'rezero', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 6, hits: 2, target: 'enemy',
+    name: '精灵魔法·双奏', desc: '造成 2 次 {D} 点伤害。',
+    up: { dmg: 8, desc: '造成 2 次 {D} 点伤害。' },
+    play(A) { A.attack(null, { times: 2 }); }
+  });
+  def({
+    id: 'rz_aroma', cls: 'rezero', type: 'skill', rarity: 'uncommon', cost: 0, target: 'all',
+    name: '魔女之香', desc: '对所有敌人造成 5 点魔法伤害,自身魔女之香 +2(敌人更凶暴)。',
+    up: { desc: '对所有敌人造成 8 点魔法伤害,自身魔女之香 +2。' },
+    play(A, inst) { A.dealMagicAll(inst.up ? 8 : 5); A.applySelf('witchscent', 2); }
+  });
+  def({
+    id: 'rz_handpower', cls: 'rezero', type: 'power', rarity: 'uncommon', cost: 2, target: 'none',
+    name: '看不见的手', desc: '每回合开始时,对随机敌人造成 2 点伤害。',
+    up: { desc: '每回合开始时,对随机敌人造成 3 点伤害。' },
+    play(A, inst) { A.applySelf('unseen', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'rz_fruit', cls: 'rezero', type: 'skill', rarity: 'uncommon', cost: 1, target: 'none',
+    name: '阿佩斯的果实', desc: '回复 8 点生命,并净化自身减益。',
+    up: { desc: '回复 12 点生命,并净化自身减益。' },
+    play(A, inst) { A.cleanseDebuffs(); A.heal(inst.up ? 12 : 8); }
+  });
+  def({
+    id: 'rz_remflail', cls: 'rezero', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 10, target: 'enemy',
+    name: '鬼化的晨星锤', desc: '造成 {D} 点伤害,并看穿敌人弱点(2 层)。',
+    up: { dmg: 14, desc: '造成 {D} 点伤害,并看穿敌人弱点(2 层)。' },
+    play(A, inst, t) { A.attack(); A.addWeakness(t, 2); }
+  });
+  def({
+    id: 'rz_ramwind', cls: 'rezero', type: 'skill', rarity: 'common', cost: 1, block: 5, target: 'none',
+    name: '风之加护', desc: '获得 {B} 点格挡,抽 1 张牌。',
+    up: { desc: '获得 {B} 点格挡,抽 2 张牌。' },
+    play(A, inst) { A.gainBlock(); A.draw(inst.up ? 2 : 1); }
+  });
+  def({
+    id: 'rz_emiliaice', cls: 'rezero', type: 'attack', rarity: 'rare', cost: 2, dmg: 10, target: 'all',
+    name: '冰霜领域', desc: '对所有敌人造成 {D} 点伤害并施加 1 层易伤。',
+    up: { dmg: 14, desc: '对所有敌人造成 {D} 点伤害并施加 1 层易伤。' },
+    play(A) { A.attackAll(); A.applyAll('vuln', 1); }
+  });
+  def({
+    id: 'rz_beako', cls: 'rezero', type: 'skill', rarity: 'rare', cost: 1, target: 'none',
+    name: '贝蒂的福音', desc: '缔结随机精灵,且精灵强度 +2。',
+    up: { desc: '缔结随机精灵,且精灵强度 +4。' },
+    up2: { cost: 0, name: '贝蒂的福音·禁书', desc: '缔结随机精灵(强度 +2),抽 2 张牌。', play(A) { const s = A.randomSpirit(); if (s) A.setGhost(s, (A.selfStatus('ghostPower') || 1) + 2); A.draw(2); } },
+    play(A, inst) { const s = A.randomSpirit(); if (s) A.setGhost(s, (A.selfStatus('ghostPower') || 1) + (inst.up ? 4 : 2)); }
+  });
+  def({
+    id: 'rz_deathcheck', cls: 'rezero', type: 'skill', rarity: 'rare', cost: 1, target: 'none',
+    name: '死亡回归·察知', desc: '获得 1 层死亡回归(受到致命伤害时抵消并回复 20% 生命)。',
+    up: { desc: '获得 2 层死亡回归。' },
+    play(A, inst) { A.applySelf('rewind', inst.up ? 2 : 1); }
+  });
+
+  RZ.pool.push('rz_icelance', 'rz_elishield', 'rz_manadraw', 'rz_ramwind',
+    'rz_bollist', 'rz_aroma', 'rz_handpower', 'rz_fruit', 'rz_remflail',
+    'rz_emiliaice', 'rz_beako', 'rz_deathcheck');
+
+  RZ.events = [
+    {
+      id: 'rz_ev_royal_selection', name: '王选演说', art: '🏰',
+      text: '王都广场人山人海。爱蜜莉雅站在高台上,深吸一口气,向人群张开双手。',
+      choices: [
+        { label: '上台声援', hint: '失去 10 点生命,最大生命 +10,获得 40 金币',
+          fx(A) { A.loseHp(8); A.addMaxHp(6); A.gainGold(30); return '石块和鲜花一起飞来。你挡在前面,银发少女的眼泪落在你手背。'; } },
+        { label: '台下维持秩序', hint: '回复 20% 生命,获得 1 瓶药水',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.2)); A.gainPotion(); return '混乱平息后,一位骑士向你敬礼,递来一瓶伤药。'; } },
+        { label: '默默离开', fx() { return '历史的车轮,今天不需要你推。'; } }
+      ]
+    },
+    {
+      id: 'rz_ev_returnpoint', name: '存档点', art: '💠',
+      text: '熟悉的场景让你胃部收紧——这个位置,你曾经死过。空气里有淡淡血腥味。',
+      choices: [
+        { label: '直面死亡记忆', hint: '失去 10 点生命,升级 2 张随机牌',
+          fx(A) { A.loseHp(10); const n = A.upgradeRandom(2); return n + ' 张牌在死亡的回放中找到了新的用法。'; } },
+        { label: '改写一个小细节', hint: '回复 20% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.2)); return '你扶正了一块即将绊倒路人的石头。世界线轻微地抖了一下。'; } }
+      ]
+    },
+    {
+      id: 'rz_ev_beatrice_library', name: '禁书图书馆', art: '📚',
+      text: '贝蒂悬浮在书架间,抱着膝。「无聊的人类,想看哪本书?只有一次机会哦。」',
+      choices: [
+        { label: '借走福音书', hint: '获得 1 张主题罕见牌',
+          fx(A) { A.gainThemeCard('rare'); return '「那本书,不许弄脏。」她别过脸去。'; } },
+        { label: '陪她聊天', hint: '回复 18% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.18)); return '四百年的孤独,被一个下午的闲聊冲淡了一点。'; } },
+        { label: '放回书', fx() { return '「哼,识相。」她把脸埋回膝盖。'; } }
+      ]
+    },
+    {
+      id: 'rz_ev_witchcult', name: '魔女教徒', art: '🎭',
+      text: '黑袍人围成半圆,嘶声吟诵着「怠惰」「暴食」「愤怒」。指环上刻着不明纹章。',
+      choices: [
+        { label: '斩杀首领', hint: '失去 20% 当前生命,获得遗物',
+          fx(A) { A.loseHp(Math.max(3, Math.floor(A.hp() * 0.2))); const r = A.randomRelic(); return r ? '「不可原谅……」首领化为黑雾,留下了指环。' : '黑袍下空无一物。'; } },
+        { label: '收集情报后撤退', hint: '获得 70 金币,抽到明日情报(随机升级 1 张牌)',
+          fx(A) { A.gainGold(70); A.upgradeRandom(1); return '大罪司教的调动表能卖个好价钱,你也学到了一招。'; } }
+      ]
+    },
+    {
+      id: 'rz_ev_dragon_carriage', name: '龙车驿站', art: '🛷',
+      text: '地龙车队的商人正在招募护卫:「去下一座城,报酬丰厚——当然,路上有魔兽。」',
+      choices: [
+        { label: '接下护卫', hint: '获得 80~120 金币,失去 8 点生命',
+          fx(A) { const g = A.randInt(80, 120); A.gainGold(g); A.loseHp(8); return '一路有惊无险(除了一头不长眼的亚人)。报酬 ' + g + ' 金币。'; } },
+        { label: '搭顺风车', hint: '回复 20 点生命',
+          fx(A) { A.heal(20); return '你在车厢里睡了个难得的安稳觉。'; } }
+      ]
+    },
+    {
+      id: 'rz_ev_emilia_lesson', name: '帕克的魔法课', art: '🐈',
+      text: '灰猫悬浮在半空,尾巴一圈圈绕着:「想学精灵术?那可要交学费的哟,小子。」',
+      choices: [
+        { label: '学习精灵术', hint: '获得 1 张主题普通牌,失去 8 点生命',
+          fx(A) { A.loseHp(8); A.gainThemeCard('common'); return '冰锥擦着你的头皮飞了一下午。但你学会了。'; } },
+        { label: '请教减伤技巧', hint: '最大生命 +8',
+          fx(A) { A.addMaxHp(8); return '「护住要害,笨蛋。」——这句话救了你以后的很多次。'; } },
+        { label: '撸猫', fx() { return '帕克舒服地眯起眼:「算你过关。」'; } }
+      ]
+    }
+  ];
+
+  RZ.duos = [
+    { ids: ['rz_a_emilia', 'rz_a_rem'], name: '冰蓝女仆', note: '战斗开始时,获得 6 点格挡',
+      combatStart(A) { A.block(6); } },
+    { ids: ['rz_a_rem', 'rz_a_ram'], name: '姐妹同心', note: '战斗开始时,获得 1 点力量',
+      combatStart(A) { A.str(1); } }
+  ];
+
+  ALLY_MAP.rz_a_emilia.active = { name: '帕克冰结', desc: '对所有敌人造成 5 点伤害并获得 5 点格挡', fx(A) { A.dmgAll(5); A.block(5); } };
+  ALLY_MAP.rz_a_rem.active = { name: '鬼化觉醒', desc: '获得 2 点力量', fx(A) { A.str(2); } };
+  ALLY_MAP.rz_a_ram.active = { name: '风刃连吹', desc: '对随机敌人造成 7 点伤害', fx(A) { A.dmgRandom(7); } };
+  ALLY_MAP.rz_a_beatrice.active = { name: '纵横无尽的图书馆', desc: '缔结一只随机精灵', fx(A) { A.contractSpirit(); } };
+  ALLY_MAP.rz_a_otto.active = { name: '情报支援', desc: '抽 2 张牌', fx(A) { A.draw(2); } };
+
+  /* ---------------- 奥特曼:新卡 ×13 ---------------- */
+  def({
+    id: 'ul_flash', cls: 'ultraman', type: 'skill', rarity: 'common', cost: 0, target: 'none',
+    name: '闪光信号', desc: '光能 +2。',
+    up: { desc: '光能 +3。' },
+    play(A, inst) { A.gainLight(inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'ul_chop', cls: 'ultraman', type: 'attack', rarity: 'common', cost: 1, dmg: 8, target: 'enemy',
+    name: '奥特手刀', desc: '造成 {D} 点伤害;彩色计时器告急(红色警戒)时伤害 +4。',
+    up: { dmg: 11, desc: '造成 {D} 点伤害;红色警戒时伤害 +4。' },
+    play(A) { if (A.light() <= A.redline()) A.attackBonus(4); A.attack(); }
+  });
+  def({
+    id: 'ul_guard', cls: 'ultraman', type: 'skill', rarity: 'common', cost: 1, block: 8, target: 'none',
+    name: '奥特屏障', desc: '获得 {B} 点格挡,光能 +1。',
+    up: { block: 11, desc: '获得 {B} 点格挡,光能 +1。' },
+    play(A) { A.gainBlock(); A.gainLight(1); }
+  });
+  def({
+    id: 'ul_crossbeam', cls: 'ultraman', type: 'attack', rarity: 'common', cost: 2, dmg: 14, target: 'enemy',
+    name: '十字光线', desc: '造成 {D} 点伤害。',
+    up: { dmg: 19, desc: '造成 {D} 点伤害。' },
+    up2: { dmg: 10, hits: 2, name: '十字光线·双', desc: '造成 2 次 {D} 点伤害。', play(A) { A.attack(null, { times: 2 }); } },
+    play(A) { A.attack(); }
+  });
+  def({
+    id: 'ul_merge', cls: 'ultraman', type: 'skill', rarity: 'common', cost: 1, target: 'none',
+    name: '一心同体', desc: '光能 +3,抽 1 张牌。',
+    up: { desc: '光能 +4,抽 1 张牌。' },
+    up2: { desc: '光能 +2,抽 3 张牌。', play(A) { A.gainLight(2); A.draw(3); } },
+    play(A, inst) { A.gainLight(inst.up ? 4 : 3); A.draw(1); }
+  });
+  def({
+    id: 'ul_sparklight', cls: 'ultraman', type: 'attack', rarity: 'common', cost: 0, dmg: 4, target: 'enemy',
+    name: '八分光弹', desc: '造成 {D} 点伤害,光能 +1。',
+    up: { dmg: 7, desc: '造成 {D} 点伤害,光能 +1。' },
+    play(A) { A.attack(); A.gainLight(1); }
+  });
+  def({
+    id: 'ul_timerguard', cls: 'ultraman', type: 'skill', rarity: 'uncommon', cost: 1, block: 12, target: 'none',
+    name: '计时器护壁', desc: '获得 {B} 点格挡,光能 -2。',
+    up: { block: 16, desc: '获得 {B} 点格挡,光能 -2。' },
+    play(A) { A.gainBlock(); A.spendLight(2); }
+  });
+  def({
+    id: 'ul_counter', cls: 'ultraman', type: 'skill', rarity: 'uncommon', cost: 1, block: 6, target: 'none',
+    name: '奥特反击', desc: '获得 {B} 点格挡和 4 点荆棘。',
+    up: { block: 9, desc: '获得 {B} 点格挡和 6 点荆棘。' },
+    play(A, inst) { A.gainBlock(); A.applySelf('thorns', inst.up ? 6 : 4); }
+  });
+  def({
+    id: 'ul_raybeam', cls: 'ultraman', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 6, target: 'enemy',
+    name: '集束射线', desc: '造成 {D} 点伤害,消耗所有光能,每点 +3 伤害。',
+    up: { desc: '造成 {D} 点伤害,消耗所有光能,每点 +4 伤害。' },
+    play(A, inst) { A.attackBonus(A.spendLightAll() * (inst.up ? 4 : 3)); A.attack(); }
+  });
+  def({
+    id: 'ul_traveler', cls: 'ultraman', type: 'power', rarity: 'uncommon', cost: 2, target: 'none',
+    name: '旅行的勇者', desc: '每回合开始时,光能 +1。',
+    up: { desc: '每回合开始时,光能 +2。' },
+    play(A, inst) { A.applySelf('lightritual', inst.up ? 2 : 1); }
+  });
+  def({
+    id: 'ul_zepellion', cls: 'ultraman', type: 'attack', rarity: 'rare', cost: 2, dmg: 10, hits: 2, target: 'enemy',
+    name: '泽佩利敖光线', desc: '造成 2 次 {D} 点伤害。',
+    up: { dmg: 13, desc: '造成 2 次 {D} 点伤害。' },
+    play(A) { A.attack(null, { times: 2 }); }
+  });
+  def({
+    id: 'ul_finalwave', cls: 'ultraman', type: 'skill', rarity: 'rare', cost: 2, target: 'all',
+    name: '终极奥特光线', desc: '消耗所有光能,对全体敌人造成 光能×5 点魔法伤害。',
+    up: { desc: '消耗所有光能,对全体敌人造成 光能×7 点魔法伤害。' },
+    play(A, inst) { const n = A.spendLightAll(); A.dealMagicAll(n * (inst.up ? 7 : 5)); }
+  });
+  def({
+    id: 'ul_giantform', cls: 'ultraman', type: 'power', rarity: 'rare', cost: 1, target: 'none',
+    name: '等离子火花', desc: '每当你消耗光能,对全体敌人造成等量魔法伤害。',
+    up: { desc: '等离子火花效果翻倍(每点光能 2 点伤害)。' },
+    play(A, inst) { A.applySelf('plasmaspark', inst.up ? 2 : 1); }
+  });
+
+  def({
+    id: 'ul_meteor', cls: 'ultraman', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 8, target: 'all',
+    name: '流星弹', desc: '对所有敌人造成 {D} 点伤害。',
+    up: { dmg: 11, desc: '对所有敌人造成 {D} 点伤害。' },
+    play(A) { A.attackAll(); }
+  });
+
+  UL.pool.push('ul_flash', 'ul_chop', 'ul_guard', 'ul_crossbeam', 'ul_merge', 'ul_sparklight',
+    'ul_timerguard', 'ul_counter', 'ul_raybeam', 'ul_traveler',
+    'ul_zepellion', 'ul_finalwave', 'ul_giantform', 'ul_meteor');
+
+  UL.events = [
+    {
+      id: 'ul_ev_sciencepatrol', name: '科特队出击', art: '🚁',
+      text: '喷气式 VTOL 悬停在头顶,队长在无线电里喊:「怪兽正在逼近市区,需要你的支援!」',
+      choices: [
+        { label: '协同作战', hint: '获得 1 张主题罕见牌,失去 8 点生命',
+          fx(A) { A.loseHp(8); A.gainThemeCard('uncommon'); return '三角战术奏效,你从配合中领悟了新的光线用法。'; } },
+        { label: '优先疏散平民', hint: '回复 25% 生命,最大生命 +5',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.25)); A.addMaxHp(5); return '最后一个孩子被抱上飞机时,朝你用力挥手。'; } },
+        { label: '独自应战', hint: '获得 60 金币(感谢金)',
+          fx(A) { A.gainGold(60); return '战斗结束后,市民在你的脚边放满了感谢的篮子。'; } }
+      ]
+    },
+    {
+      id: 'ul_ev_three_minutes', name: '三分钟倒计时', art: '⏱️',
+      text: '彩色计时器开始闪烁。红光映在废弃大楼的玻璃上,像一颗跳到嗓子眼的心脏。',
+      choices: [
+        { label: '压上全部光能', hint: '失去 12 点生命,升级 2 张随机牌',
+          fx(A) { A.loseHp(12); const n = A.upgradeRandom(2); return n + ' 张牌在最后三秒内超越了极限。'; } },
+        { label: '撤退充能', hint: '回复 30% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.3)); return '你退到平流层,让太阳风灌满全身。'; } }
+      ]
+    },
+    {
+      id: 'ul_ev_monster_graveyard', name: '怪兽墓场', art: '🪐',
+      text: '漂浮着无数沉睡怪兽的虚空。它们曾经也是地球的孩子。',
+      choices: [
+        { label: '唤醒一只做伙伴', hint: '获得遗物,失去 15 点生命',
+          fx(A) { A.loseHp(15); const r = A.randomRelic(); return r ? '一只小怪兽蹭了蹭你的手心,跟你走了。' : '墓场一片死寂。'; } },
+        { label: '超度亡魂', hint: '回复 20% 生命,获得 30 金币',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.2)); A.gainGold(30); return '光之力量温柔地包裹了墓场。宇宙奖励了你的慈悲。'; } },
+        { label: '静静离开', fx() { return '不该打扰的,就不要打扰。'; } }
+      ]
+    },
+    {
+      id: 'ul_ev_beta_capsule', name: '贝塔胶囊', art: '💊',
+      text: ' capsules 的微光在废墟中闪烁。持有者已不见踪影,只有一行字:「托付给相信光的人。」',
+      choices: [
+        { label: '接受托付', hint: '获得 1 张主题稀有牌',
+          fx(A) { A.gainThemeCard('rare'); return '光在体内苏醒。新的力量属于你了。'; } },
+        { label: '上交科特队保管', hint: '获得 90 金币',
+          fx(A) { A.gainGold(90); return '科特队付给了你一笔可观的研究报酬。'; } }
+      ]
+    },
+    {
+      id: 'ul_ev_city_evacuation', name: '疏散警报', art: '🚨',
+      text: '防空警报撕裂天空。避难所门口,一位老奶奶还在往回跑——她家阳台上有一盆开了十年的花。',
+      choices: [
+        { label: '帮她抢救花盆', hint: '最大生命 +8,回复 15 点生命',
+          fx(A) { A.addMaxHp(8); A.heal(15); return '花盆完好无损。老奶奶说你会得到祝福的。'; } },
+        { label: '强制带离', hint: '获得 2 瓶药水',
+          fx(A) { A.gainPotion(); A.gainPotion(); return '避难所的医护人员塞给你两瓶能量剂。'; } }
+      ]
+    },
+    {
+      id: 'ul_ev_land_of_light', name: '光之国的回响', art: '✨',
+      text: '梦中,M78 星云的光芒落在你肩上。「奥特兄弟在注视着你。」',
+      choices: [
+        { label: '请求特训', hint: '失去 10 点生命,升级 3 张随机牌',
+          fx(A) { A.loseHp(10); const n = A.upgradeRandom(3); return n + ' 张牌在师父们的指点下脱胎换骨。'; } },
+        { label: '请求祝福', hint: '回复 35% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.35)); return '温暖的光流过全身,伤痕愈合了。'; } }
+      ]
+    }
+  ];
+
+  UL.duos = [
+    { ids: ['ul_a_seven', 'ul_a_jack'], name: '归来的光线', note: '战斗开始时,光能 +3',
+      combatStart(A) { A.light(3); } },
+    { ids: ['ul_a_zoffy', 'ul_a_taro'], name: '兄弟奥义', note: '战斗开始时,获得 6 点格挡、光能 +2',
+      combatStart(A) { A.block(6); A.light(2); } }
+  ];
+
+  ALLY_MAP.ul_a_seven.active = { name: '头镖·艾梅利姆', desc: '对随机敌人造成 8 点伤害', fx(A) { A.dmgRandom(8); } };
+  ALLY_MAP.ul_a_jack.active = { name: '奥特切割', desc: '对所有敌人造成 6 点伤害', fx(A) { A.dmgAll(6); } };
+  ALLY_MAP.ul_a_zoffy.active = { name: '兄弟之光', desc: '光能 +3 并回复 5 点生命', fx(A) { A.light(3); A.heal(5); } };
+  ALLY_MAP.ul_a_taro.active = { name: '斯特里姆光线', desc: '对随机敌人造成 10 点伤害', fx(A) { A.dmgRandom(10); } };
+  ALLY_MAP.ul_a_kotest.active = { name: '科特队支援炮火', desc: '对所有敌人造成 4 点伤害并施加 1 层易伤', fx(A) { A.dmgAll(4); A.vulnRandom(1); } };
+
+  /* ---------------- 西游记:新卡 ×13 ---------------- */
+  def({
+    id: 'xy_swing', cls: 'wukong', type: 'attack', rarity: 'common', cost: 1, dmg: 8, target: 'enemy',
+    name: '横扫千军', desc: '造成 {D} 点伤害,棍势 +1。',
+    up: { dmg: 11, desc: '造成 {D} 点伤害,棍势 +1。' },
+    play(A) { A.attack(); A.cudgel(1); }
+  });
+  def({
+    id: 'xy_stance', cls: 'wukong', type: 'skill', rarity: 'common', cost: 1, block: 5, target: 'none',
+    name: '持棍之势', desc: '获得 {B} 点格挡,棍势 +2。',
+    up: { desc: '获得 {B} 点格挡,棍势 +3。' },
+    play(A, inst) { A.gainBlock(); A.cudgel(inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'xy_bonk', cls: 'wukong', type: 'attack', rarity: 'common', cost: 2, dmg: 13, target: 'enemy',
+    name: '当头一棒', desc: '造成 {D} 点伤害,消耗所有棍势,每层 +2 伤害。',
+    up: { dmg: 16, desc: '造成 {D} 点伤害,消耗所有棍势,每层 +3 伤害。' },
+    play(A, inst) { A.attackBonus(A.spendCudgel(99) * (inst.up ? 3 : 2)); A.attack(); }
+  });
+  def({
+    id: 'xy_windride', cls: 'wukong', type: 'skill', rarity: 'common', cost: 0, exhaust: true, target: 'none',
+    name: '筋斗云', desc: '抽 1 张牌,棍势 +1。消耗。',
+    up: { desc: '抽 2 张牌,棍势 +1。消耗。' },
+    up2: { desc: '抽 1 张牌,棍势 +2。消耗。', play(A) { A.draw(1); A.cudgel(2); } },
+    play(A, inst) { A.draw(inst.up ? 2 : 1); A.cudgel(1); }
+  });
+  def({
+    id: 'xy_72form', cls: 'wukong', type: 'skill', rarity: 'uncommon', cost: 1, target: 'none',
+    name: '七十二变', desc: '抽 2 张牌,棍势 +1。',
+    up: { desc: '抽 3 张牌,棍势 +1。' },
+    play(A, inst) { A.draw(inst.up ? 3 : 2); A.cudgel(1); }
+  });
+  def({
+    id: 'xy_goldglow', cls: 'wukong', type: 'skill', rarity: 'uncommon', cost: 1, block: 10, target: 'none',
+    name: '金光护体', desc: '获得 {B} 点格挡,棍势 +1。',
+    up: { block: 14, desc: '获得 {B} 点格挡,棍势 +1。' },
+    play(A) { A.gainBlock(); A.cudgel(1); }
+  });
+  def({
+    id: 'xy_clones', cls: 'wukong', type: 'power', rarity: 'uncommon', cost: 2, target: 'none',
+    name: '身外身法', desc: '每回合开始时,获得 1 张「猴毛」(攻击 4 点的小分身)。',
+    up: { desc: '每回合开始时,获得 2 张「猴毛」。' },
+    play(A, inst) { A.applySelf('monkeys', inst.up ? 2 : 1); }
+  });
+  def({
+    id: 'xy_grow', cls: 'wukong', type: 'power', rarity: 'uncommon', cost: 2, target: 'none',
+    name: '法天象地', desc: '每当你打出攻击牌,棍势 +2。',
+    up: { desc: '每当你打出攻击牌,棍势 +3。' },
+    play(A, inst) { A.applySelf('growstaff', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'xy_monkeyfury', cls: 'wukong', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 6, target: 'enemy',
+    name: '怒猿击', desc: '造成 {D} 点伤害,每层棍势额外 +2 伤害(不消耗)。',
+    up: { dmg: 8, desc: '造成 {D} 点伤害,每层棍势额外 +2 伤害(不消耗)。' },
+    play(A) { A.attackBonus(A.cudgelCount() * 2); A.attack(); }
+  });
+  def({
+    id: 'xy_sealblock', cls: 'wukong', type: 'skill', rarity: 'uncommon', cost: 1, block: 12, target: 'none',
+    name: '六字真言', desc: '获得 {B} 点格挡,所有敌人「镇压」1 层(伤害 -25%)。',
+    up: { block: 16, desc: '获得 {B} 点格挡,所有敌人「镇压」1 层。' },
+    play(A) { A.gainBlock(); A.applyAll('seal', 1); }
+  });
+  def({
+    id: 'xy_skyfall', cls: 'wukong', type: 'attack', rarity: 'rare', cost: 2, dmg: 8, hits: 3, target: 'enemy',
+    name: '乱棒如雨', desc: '造成 3 次 {D} 点伤害。',
+    up: { dmg: 10, desc: '造成 3 次 {D} 点伤害。' },
+    play(A) { A.attack(null, { times: 3 }); }
+  });
+  def({
+    id: 'xy_dignity', cls: 'wukong', type: 'power', rarity: 'rare', cost: 2, target: 'none',
+    name: '大圣威仪', desc: '获得 1 层威仪(每回合棍势 +2)和 1 点力量。',
+    up: { desc: '获得 2 层威仪(每回合棍势 +4)和 1 点力量。' },
+    play(A, inst) { A.applySelf('majesty', inst.up ? 2 : 1); A.applySelf('str', 1); }
+  });
+  def({
+    id: 'xy_oceanwave', cls: 'wukong', type: 'skill', rarity: 'rare', cost: 1, target: 'none',
+    name: '定海神针', desc: '消耗所有棍势,每层抽 1 张牌。',
+    up: { desc: '消耗所有棍势,每层抽 1 张牌,并获得 8 点格挡。' },
+    play(A, inst) { const n = A.spendCudgel(99); if (inst.up) A.gainBlock(8); A.draw(n); }
+  });
+
+  def({
+    id: 'xy_cloudstep', cls: 'wukong', type: 'skill', rarity: 'common', cost: 1, block: 6, target: 'none',
+    name: '腾云驾雾', desc: '获得 {B} 点格挡,抽 1 张牌。',
+    up: { block: 9, desc: '获得 {B} 点格挡,抽 1 张牌。' },
+    play(A) { A.gainBlock(); A.draw(1); }
+  });
+
+  XY.pool.push('xy_swing', 'xy_stance', 'xy_bonk', 'xy_windride',
+    'xy_72form', 'xy_goldglow', 'xy_clones', 'xy_grow', 'xy_monkeyfury', 'xy_sealblock',
+    'xy_skyfall', 'xy_dignity', 'xy_oceanwave', 'xy_cloudstep');
+
+  XY.events = [
+    {
+      id: 'xy_ev_ginsengfruit', name: '五庄观的人参果', art: '🍐',
+      text: '清风明月捧出九千年一熟的果子。「吃一个吧,延寿四万七千年——但镇元大仙的规矩,你懂的。」',
+      choices: [
+        { label: '偷吃一个', hint: '最大生命 +15,污染 +2',
+          fx(A) { A.addMaxHp(15); A.addCurse(2); return '果香入口的一瞬,树梢传来一声冷笑。'; } },
+        { label: '帮果园除虫', hint: '回复 30% 生命,获得 1 张主题牌',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.3)); A.gainThemeCard('common'); return '两位童子送了你一枚小果子,和一式仙法。'; } },
+        { label: '婉拒离开', fx() { return '你不想重蹈五百年前那场大闹的覆辙。'; } }
+      ]
+    },
+    {
+      id: 'xy_ev_flamingmountain', name: '火焰山', art: '🌋',
+      text: '八百里火焰挡路。铁扇公主的芭蕉扇,借还是不借?',
+      choices: [
+        { label: '三借芭蕉扇', hint: '失去 12 点生命,获得遗物',
+          fx(A) { A.loseHp(12); const r = A.randomRelic(); return r ? '第三次,扇子终于到手。风起,火灭。' : '真假扇子搅成一团,火更大了。'; } },
+        { label: '硬闯火海', hint: '失去 8 点生命,升级 2 张随机牌',
+          fx(A) { A.loseHp(8); const n = A.upgradeRandom(2); return n + ' 张牌在烈火中淬炼出了真意。'; } },
+        { label: '绕路十万八千里', hint: '回复 20 点生命',
+          fx(A) { A.heal(20); return '多走的路也是修行。你调息了整整一个月。'; } }
+      ]
+    },
+    {
+      id: 'xy_ev_bai_gu_jing', name: '白骨夫人', art: '💀',
+      text: '村姑、老妪、老翁——三具白骨都倒在你面前。师父的脸色很难看。',
+      choices: [
+        { label: '打死不放', hint: '获得 1 张主题稀有牌,失去 10 点生命',
+          fx(A) { A.loseHp(10); A.gainThemeCard('rare'); return '火眼金睛没有看错。妖气散尽处,留下一式神通。'; } },
+        { label: '手下留情', hint: '回复 25% 生命,但获得 1 张诅咒',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.25)); A.curse('wound'); return '妖怪笑着遁走,在你身上留了一道抓痕。'; } }
+      ]
+    },
+    {
+      id: 'xy_ev_taoist_temple', name: '车迟国斗法', art: '🀄',
+      text: '虎力、鹿力、羊力三位大仙摆下赌局:「求雨、坐禅、隔板猜物,敢不敢来?」',
+      choices: [
+        { label: '赌大的', hint: '50%:获得 150 金币 / 50%:失去 15 点生命',
+          fx(A) { if (A.chance(0.5)) { A.gainGold(150); return '砍头剖腹下油锅,样样你赢。国库大开。'; } A.loseHp(15); return '阴沟里翻了船。三位大仙笑得前仰后合。'; } },
+        { label: '只比坐禅', hint: '获得 1 张主题罕见牌',
+          fx(A) { A.gainThemeCard('uncommon'); return '禅定之间,你悟出了一式不动如山的功夫。'; } },
+        { label: '认输走人', fx() { return '「不赌不赌。」你拉着师父连夜过了国界。'; } }
+      ]
+    },
+    {
+      id: 'xy_ev_dragon_palace', name: '东海龙宫', art: '🐉',
+      text: '老龙王抚着胡须:「定海神针已是你的了。不过——库房里还有件东西,看你有没有缘分。」',
+      choices: [
+        { label: '再讨一件宝', hint: '获得随机遗物,污染 +1',
+          fx(A) { A.addCurse(1); const r = A.randomRelic(); return r ? '龙王肉疼地取出一件宝贝。海图上,你的因果债又厚了一页。' : '龙王两手一摊:「真没了。」'; } },
+        { label: '谢过离去', hint: '回复 25% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.25)); return '知足者,龙宫赠甘露一盏。'; } }
+      ]
+    },
+    {
+      id: 'xy_ev_buddhist_scripture', name: '无字真经', art: '📜',
+      text: '雷音寺的经书雪白一片,无一字。「白经者,乃无字真经,倒也是好的。——然尔等东土众生,迷雾愚蒙,只可传有字的。」',
+      choices: [
+        { label: '回头换取有字真经', hint: '花费 50 金币,升级 3 张随机牌',
+          can(g) { return g.gold() >= 50; },
+          fx(A) { A.loseGold(50); const n = A.upgradeRandom(3); return '"人事"交讫,' + n + ' 卷真经金光灿灿。'; } },
+        { label: '参悟无字之经', hint: '最大生命 +10',
+          fx(A) { A.addMaxHp(10); return '你盯着空白看了整整一夜,胸口忽然一热。'; } },
+        { label: '都不要', fx() { return '真经在心中,不在纸上。你转身下山西去。'; } }
+      ]
+    }
+  ];
+
+  XY.duos = [
+    { ids: ['xy_a_sanzang', 'xy_a_bajie'], name: '师徒同心', note: '战斗开始时,棍势 +2、回复 5 点生命',
+      combatStart(A) { A.cudgel(2); A.heal(5); } },
+    { ids: ['xy_a_bajie', 'xy_a_wujing'], name: '挑担兄弟', note: '战斗开始时,获得 8 点格挡',
+      combatStart(A) { A.block(8); } }
+  ];
+
+  ALLY_MAP.xy_a_sanzang.active = { name: '紧箍咒', desc: '对随机敌人造成 5 点伤害并施加 2 层易伤', fx(A) { A.dmgRandom(5); A.vulnRandom(2); } };
+  ALLY_MAP.xy_a_bajie.active = { name: '九齿钉耙', desc: '对所有敌人造成 6 点伤害', fx(A) { A.dmgAll(6); } };
+  ALLY_MAP.xy_a_wujing.active = { name: '降妖宝杖', desc: '对随机敌人造成 8 点伤害', fx(A) { A.dmgRandom(8); } };
+  ALLY_MAP.xy_a_horse.active = { name: '白龙突袭', desc: '对随机敌人造成 6 点伤害并获得 4 点格挡', fx(A) { A.dmgRandom(6); A.block(4); } };
+  ALLY_MAP.xy_a_guanyin.active = { name: '杨柳甘露', desc: '回复 10 点生命', fx(A) { A.heal(10); } };
+
+  /* ---------------- 妖精的尾巴:新卡 ×13 ---------------- */
+  def({
+    id: 'ft_punch', cls: 'fairytail', type: 'attack', rarity: 'common', cost: 1, dmg: 8, target: 'enemy',
+    name: '铁拳一击', desc: '造成 {D} 点伤害,龙之意志 +1。',
+    up: { dmg: 11, desc: '造成 {D} 点伤害,龙之意志 +1。' },
+    play(A) { A.attack(); A.dragonforce(1); }
+  });
+  def({
+    id: 'ft_roar', cls: 'fairytail', type: 'attack', rarity: 'common', cost: 2, dmg: 8, target: 'all',
+    name: '火龙的咆哮', desc: '对所有敌人造成 {D} 点伤害。',
+    up: { dmg: 11, desc: '对所有敌人造成 {D} 点伤害。' },
+    play(A) { A.attackAll(); }
+  });
+  def({
+    id: 'ft_scale', cls: 'fairytail', type: 'skill', rarity: 'common', cost: 1, target: 'none',
+    name: '灭龙之鳞', desc: '每回合开始时,获得 2 点格挡(本场战斗)。',
+    up: { desc: '每回合开始时,获得 3 点格挡(本场战斗)。' },
+    play(A, inst) { A.applySelf('scales', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'ft_lucykick', cls: 'fairytail', type: 'attack', rarity: 'common', cost: 1, dmg: 6, target: 'enemy',
+    name: '露西飞踢', desc: '造成 {D} 点伤害,抽 1 张牌。',
+    up: { dmg: 9, desc: '造成 {D} 点伤害,抽 1 张牌。' },
+    play(A) { A.attack(); A.draw(1); }
+  });
+  def({
+    id: 'ft_wendycure', cls: 'fairytail', type: 'skill', rarity: 'common', cost: 1, target: 'none',
+    name: '天龙的加护', desc: '回复 8 点生命,并净化自身减益。',
+    up: { desc: '回复 12 点生命,并净化自身减益。' },
+    play(A, inst) { A.cleanseDebuffs(); A.heal(inst.up ? 12 : 8); }
+  });
+  def({
+    id: 'ft_icehammer', cls: 'fairytail', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 14, target: 'enemy',
+    name: '冰灭·战锤', desc: '造成 {D} 点伤害,敌人脆弱 2 层。',
+    up: { dmg: 18, desc: '造成 {D} 点伤害,敌人脆弱 3 层。' },
+    play(A, inst, t) { A.attack(); A.applyTo(t, 'frail', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'ft_flight', cls: 'fairytail', type: 'skill', rarity: 'uncommon', cost: 1, block: 4, target: 'none',
+    name: '哈比的翅膀', desc: '获得 {B} 点格挡,抽 2 张牌。',
+    up: { desc: '获得 {B} 点格挡,抽 3 张牌。' },
+    play(A, inst) { A.gainBlock(); A.draw(inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'ft_bindings', cls: 'fairytail', type: 'skill', rarity: 'uncommon', cost: 1, target: 'all',
+    name: '束缚之线', desc: '所有敌人虚弱 2 层。',
+    up: { desc: '所有敌人虚弱 3 层。' },
+    play(A, inst) { A.applyAll('weak', inst.up ? 3 : 2); }
+  });
+  def({
+    id: 'ft_burnlife', cls: 'fairytail', type: 'skill', rarity: 'uncommon', cost: 0, target: 'none',
+    name: '燃烧生命', desc: '每回合结束时,获得 1 点力量并失去 2 点生命。',
+    up: { desc: '每回合结束时,获得 1 点力量并失去 1 点生命。' },
+    play(A) { A.applySelf('burnlife', 1); }
+  });
+  def({
+    id: 'ft_ironwall', cls: 'fairytail', type: 'skill', rarity: 'uncommon', cost: 1, block: 10, target: 'none',
+    name: '铁之壁', desc: '获得 {B} 点格挡和 3 点荆棘。',
+    up: { block: 14, desc: '获得 {B} 点格挡和 5 点荆棘。' },
+    play(A, inst) { A.gainBlock(); A.applySelf('thorns', inst.up ? 5 : 3); }
+  });
+  def({
+    id: 'ft_dragonclaw', cls: 'fairytail', type: 'power', rarity: 'rare', cost: 2, target: 'none',
+    name: '龙之力', desc: '获得 2 层龙之意志(每层攻击 +15%)。',
+    up: { cost: 1, desc: '获得 2 层龙之意志(每层攻击 +15%)。' },
+    up2: { cost: 2, name: '龙之力·觉醒', desc: '获得 2 层龙之意志和 2 点力量。', play(A) { A.applySelf('dragonforce', 2); A.applySelf('str', 2); } },
+    play(A) { A.applySelf('dragonforce', 2); }
+  });
+  def({
+    id: 'ft_unionraid', cls: 'fairytail', type: 'attack', rarity: 'rare', cost: 2, dmg: 10, target: 'enemy',
+    name: '合体魔法', desc: '造成 {D} 点伤害,每名伙伴额外 +3 伤害。',
+    up: { dmg: 13, desc: '造成 {D} 点伤害,每名伙伴额外 +3 伤害。' },
+    play(A) { A.attackBonus(A.allies() * 3); A.attack(); }
+  });
+  def({
+    id: 'ft_fairylaw', cls: 'fairytail', type: 'attack', rarity: 'rare', cost: 3, dmg: 18, target: 'all',
+    name: '妖精的法律', desc: '对所有敌人造成 {D} 点伤害。',
+    up: { dmg: 24, desc: '对所有敌人造成 {D} 点伤害。' },
+    up2: { cost: 2, dmg: 12, name: '妖精的法律·制裁', desc: '对所有敌人造成 {D} 点伤害并施加 2 层易伤。', play(A) { A.attackAll(); A.applyAll('vuln', 2); } },
+    play(A) { A.attackAll(); }
+  });
+
+  FT.pool.push('ft_punch', 'ft_roar', 'ft_scale', 'ft_lucykick', 'ft_wendycure',
+    'ft_icehammer', 'ft_flight', 'ft_bindings', 'ft_burnlife', 'ft_ironwall',
+    'ft_dragonclaw', 'ft_unionraid', 'ft_fairylaw');
+
+  FT.events = [
+    {
+      id: 'ft_ev_guild_master', name: '会长的工作台', art: '📋',
+      text: '马卡罗夫会长把一叠委托单拍在桌上:「S 级的太危险,但这份 D 级的……报酬意外地不错哦。」',
+      choices: [
+        { label: '接 D 级委托(找猫)', hint: '获得 70 金币,回复 15 点生命',
+          fx(A) { A.gainGold(70); A.heal(15); return '猫找到了,还顺带端了一个盗贼窝。轻松愉快。'; } },
+        { label: '偷接 S 级委托', hint: '失去 15 点生命,获得 1 张主题稀有牌',
+          can(g) { return g.hp() > 15; },
+          fx(A) { A.loseHp(15); A.gainThemeCard('rare'); return '半死不活地回来了——但你的魔力成长了一大截。'; } },
+        { label: '在公会喝酒', hint: '回复 25% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.25)); return '「今天就不收你酒钱了!」公会永远是最暖的地方。'; } }
+      ]
+    },
+    {
+      id: 'ft_ev_dragon_slayer', name: '灭龙魔导士的试炼', art: '🐲',
+      text: '高塔上栖息着一条真正的龙。「想要超越我吗,小鬼?那就先接住我一成的怒火。」',
+      choices: [
+        { label: '硬接龙息', hint: '失去 20 点生命,获得 2 层龙之意志效果(随机升级 3 张攻击牌)',
+          fx(A) { A.loseHp(20); A.upgradeRandomWhere(v => v.type === 'attack', 3); return '火焰没有烧死你,反而成了你的养料。'; } },
+        { label: '请教龙语', hint: '最大生命 +12',
+          fx(A) { A.addMaxHp(12); return '古龙的语言里藏着魔力的真髓。'; } },
+        { label: '礼貌告辞', fx() { return '「明智。」龙的笑声震落了塔顶的积雪。'; } }
+      ]
+    },
+    {
+      id: 'ft_ev_celestial_spirit', name: '星灵界的门扉', art: '🚪',
+      text: '金色的钥匙插在虚空中旋转。门后传来清脆的声音:「契约者,今天想和哪位星灵签约定?」',
+      choices: [
+        { label: '签订新契约', hint: '获得 1 张主题罕见牌',
+          fx(A) { A.gainThemeCard('uncommon'); return '一道新的星光加入了你的卡组。'; } },
+        { label: '修复旧契约', hint: '花费 40 金币,升级 2 张随机牌',
+          can(g) { return g.gold() >= 40; },
+          fx(A) { A.loseGold(40); const n = A.upgradeRandom(2); return n + ' 张星灵牌恢复了巅峰之力。'; } },
+        { label: '关上门', fx() { return '「那,下次见。」钥匙安静了下来。'; } }
+      ]
+    },
+    {
+      id: 'ft_ev_magnolia_festival', name: '哈鲁蒂翁祭', art: '🎆',
+      text: '马格诺利亚的庆典之夜。露天的长桌上摆满了烤肉,米拉珍在吧台后面朝你招手。',
+      choices: [
+        { label: '大吃一顿', hint: '回复 35% 生命',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.35)); return '「再来一份!」你连吃了八盘,伤全好了。'; } },
+        { label: '参加幻想大游行', hint: '获得 90~120 金币',
+          fx(A) { const g = A.randInt(90, 120); A.gainGold(g); return '你们的花车拿了第一名,奖金 ' + g + ' 金币。'; } },
+        { label: '屋顶看烟花', hint: '最大生命 +6,回复 10 点生命',
+          fx(A) { A.addMaxHp(6); A.heal(10); return '有人在旁边吵吵闹闹,但此刻很安心。'; } }
+      ]
+    },
+    {
+      id: 'ft_ev_s_class_trial', name: 'S 级晋升试炼', art: '🏝️',
+      text: '天狼岛上,古老的石碑亮起纹路。「想成为 S 级魔导士吗?证明你的魔力吧。」',
+      choices: [
+        { label: '挑战石碑', hint: '失去 15 点生命,获得遗物',
+          fx(A) { A.loseHp(15); const r = A.randomRelic(); return r ? '石碑认可了你,圣光凝成遗物落入掌心。' : '石碑沉默着,你的魔力还不够。'; } },
+        { label: '与同伴切磋', hint: '升级 2 张随机牌',
+          fx(A) { const n = A.upgradeRandom(2); return n + ' 张魔法在实战中进化了。'; } }
+      ]
+    },
+    {
+      id: 'ft_ev_heartfilia_estate', name: '哈特菲利亚宅邸', art: '🏰',
+      text: '露西家的老宅安静得能听见灰尘落地。管家躬身:「小姐的朋友,就是贵客。」',
+      choices: [
+        { label: '接受家宴款待', hint: '回复 30% 生命,获得 1 瓶药水',
+          fx(A) { A.heal(Math.floor(A.maxHp() * 0.3)); A.gainPotion(); return '一顿正经的晚宴,久违的安宁。'; } },
+        { label: '借阅藏书', hint: '获得 2 张主题普通牌',
+          fx(A) { A.gainThemeCard('common'); A.gainThemeCard('common'); return '魔法典籍里藏着两式好用的魔法。'; } }
+      ]
+    }
+  ];
+
+  FT.duos = [
+    { ids: ['ft_a_lucy', 'ft_a_gray'], name: '双人小队', note: '战斗开始时,抽 1 张牌',
+      combatStart(A) { A.draw(1); } },
+    { ids: ['ft_a_erza', 'ft_a_wendy'], name: '女王与天空', note: '战斗开始时,获得 1 点力量、5 点格挡',
+      combatStart(A) { A.str(1); A.block(5); } }
+  ];
+
+  ALLY_MAP.ft_a_lucy.active = { name: '星灵召唤', desc: '对随机敌人造成 6 点伤害并获得 4 点格挡', fx(A) { A.dmgRandom(6); A.block(4); } };
+  ALLY_MAP.ft_a_gray.active = { name: '冰造·战锤', desc: '对随机敌人造成 9 点伤害', fx(A) { A.dmgRandom(9); } };
+  ALLY_MAP.ft_a_happy.active = { name: '翔翼支援', desc: '抽 2 张牌', fx(A) { A.draw(2); } };
+  ALLY_MAP.ft_a_erza.active = { name: '换装·天轮之铠', desc: '获得 8 点格挡和 1 点力量', fx(A) { A.block(8); A.str(1); } };
+  ALLY_MAP.ft_a_wendy.active = { name: '天龙的咆哮·天', desc: '回复 8 点生命并抽 1 张牌', fx(A) { A.heal(8); A.draw(1); } };
+
   global.GS.THEMES = {
     all: THEMES,
     map: THEME_MAP,

@@ -18,6 +18,7 @@ require('../js/potions.js');
 require('../js/events.js');
 require('../js/packs.js');
 require('../js/themes.js');
+require('../js/codex.js');
 require('../js/engine.js');
 
 const { Engine, RNG, CARDS } = globalThis.GS;

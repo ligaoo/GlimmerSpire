@@ -703,15 +703,22 @@
     defs: C,
     get(id) { return C[id]; },
     // 合并升级补丁,返回计算后的定义快照
+    // up:1 path:2 表示走 B 分支(up2 完整覆盖,可带独立 play/name/desc)
     view(inst) {
       const d = C[inst.id];
       if (!d) throw new Error('未知卡牌: ' + inst.id);
       if (!inst.up || !d.up) return d;
+      if (inst.path === 2 && d.up2) return Object.assign({}, d, d.up2);
       return Object.assign({}, d, d.up);
     },
     upgradeable(id) {
       const d = C[id];
       return d && d.up && Object.keys(d.up).length > 0;
+    },
+    // 是否存在双升级分支(B 分支)
+    branchable(id) {
+      const d = C[id];
+      return !!(d && d.up2);
     },
     // 职业奖励池(未解锁的技能包卡不出现在池中)
     pool(cls, rarity) {
@@ -769,7 +776,9 @@
       light: '光能', witchscent: '魔女之香', rewind: '死亡回归', unseen: '看不见的手',
       gluttony: '暴食的权能', cudgel: '棍势', growstaff: '法天象地', majesty: '大圣威仪',
       sixarms: '三头六臂', dragonforce: '龙之意志', scales: '灭龙之鳞', burnlife: '燃烧生命',
-      plasmaspark: '等离子火花', monkeys: '身外身法'
+      plasmaspark: '等离子火花', monkeys: '身外身法',
+      /* v5 新状态 */
+      soulgain: '魂火增益', eyeritual: '开眼增益', cegen: '咒力增益', lightritual: '光能增益'
     }
   };
 

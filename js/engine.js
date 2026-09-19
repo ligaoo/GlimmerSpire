@@ -112,7 +112,9 @@
       if (r === wardRow || r === rows - 2) continue;
       for (const n of map[r]) {
         const roll = RNG.float(run);
-        if (r >= 3 && roll < 0.22) n.type = 'elite';
+        // 每日「精英猎人」/进阶等级会提高精英出现率
+        const eliteP = 0.22 + (run.daily === 'elitehunter' ? 0.26 : 0) + 0.008 * (run.ascension || 0);
+        if (r >= 3 && roll < eliteP) n.type = 'elite';
         else if (r % 3 === 2 && roll < 0.55) n.type = 'curse';
         else if (roll < 0.68) n.type = 'combat';
         else if (roll < 0.80) n.type = 'event';
@@ -197,13 +199,29 @@
     // 主题:污染越深,敌人越强(与玩家伤害加成形成取舍,有上限)
     const t = themeOf(run);
     if (t && t.curseHp) hp = Math.floor(hp * (1 + Math.min(0.3, t.curseHp * (run.player.curse || 0))));
+    // 难度/进阶/每日:全局敌人生命倍率
+    if (run.enemyHpMult) hp = Math.floor(hp * run.enemyHpMult);
     const e = {
       uid: uid(), id, name: d.name, art: d.art,
       hp, maxHp: hp, block: 0, statuses: {}, dead: false,
       isElite: !!d.elite, isBoss: !!d.boss,
       move: null, _last: null, _feasted: false, _p2: false
     };
+    // 词缀:普通敌人从第 2 段起有概率携带(无尽继续提升)
+    if (!d.elite && !d.boss && run.act >= 2) {
+      const p = Math.min(0.40, 0.12 + 0.07 * (run.act - 1));
+      if (RNG.chance(run, p)) {
+        const key = RNG.pick(run, AFFIX_KEYS);
+        const af = AFFIXES[key];
+        e.affix = key;
+        e.affixName = af.name;
+        if (af.hpMult !== 1) { e.hp = Math.max(1, Math.floor(e.hp * af.hpMult)); e.maxHp = e.hp; }
+        if (key === 'thorny') addStatus(run, e, 'thorns', 3);
+        if (key === 'shielded') { e.block += 5 + run.act * 2; }
+      }
+    }
     if (d.init) d.init(e, run);
+    if (GS.Codex) GS.Codex.record('enemies', id);
     return e;
   }
 
@@ -253,6 +271,8 @@
     if (target) {
       if (target.isElite) atk = Math.floor(atk * (1 + relicSumDiscount(run, 'eliteDmgMult')));
       if (target.isBoss) atk = Math.floor(atk * (1 + relicSumDiscount(run, 'bossDmgMult')));
+      // 每日「巨人杀手」:对 BOSS 伤害 +50%
+      if (target.isBoss && run.daily === 'giantslayer') atk = Math.floor(atk * 1.5);
       if (statusOf(target, 'vuln') > 0) atk = Math.floor(atk * 1.5);
       // 主题:弱点(阴阳眼等效果揭示)
       if (statusOf(target, 'weakness') > 0) atk = Math.floor(atk * 1.5);
@@ -283,6 +303,10 @@
     // 主题:魔女之香——灾祸闻香而来,敌人的攻击更加凶暴
     if (statusOf(run.combat.player, 'witchscent') > 0) atk = Math.floor(atk * 1.25);
     if (statusOf(run.combat.player, 'vuln') > 0) atk = Math.floor(atk * 1.5);
+    // 词缀:迅捷敌人伤害提高
+    if (e.affix === 'swift') atk = Math.floor(atk * 1.25);
+    // 难度/进阶/每日:全局敌人伤害倍率
+    if (run.enemyDmgMult) atk = Math.floor(atk * run.enemyDmgMult);
     return Math.max(0, atk);
   }
 
@@ -711,6 +735,17 @@
         if (!t || !t.redline) return -1;
         return t.redline + relicVal(run, 'redlinePlus');
       },
+      /* ---- 西游记:棍势 ---- */
+      cudgel(n) { if (n > 0) addStatus(run, c.player, 'cudgel', n, true); },
+      cudgelCount() { return statusOf(c.player, 'cudgel'); },
+      spendCudgel(n) {
+        const have = statusOf(c.player, 'cudgel');
+        const use = Math.min(have, n);
+        if (use > 0) addStatus(run, c.player, 'cudgel', -use, true);
+        return use;
+      },
+      /* ---- 妖精的尾巴:龙之意志 ---- */
+      dragonforce(n) { if (n > 0) addStatus(run, c.player, 'dragonforce', n, true); },
       /* ---- 奥特曼:光能 ---- */
       light() { return c.light ? c.light.val : 0; },
       lightMax() { return c.light ? c.light.max : 0; },
@@ -872,35 +907,47 @@
 
   // 镜域/领域之值:满值反噬并重置
   /* ================= 联动伙伴:行动上下文 ================= */
-  function makeAllyCtx(run) {
+  function makeAllyCtx(run, allyId) {
     const c = run.combat;
     const living = () => (c ? c.enemies.filter(e => !e.dead) : []);
+    // 伙伴等级(商店训练):数值效果按等级放大
+    const lv = (allyId && run.player.allyLv && run.player.allyLv[allyId]) || 1;
+    const m = 1 + 0.5 * (lv - 1);
+    const M = (n) => Math.round(n * m);
     return {
-      block(n) { if (n > 0) gainPlayerBlock(run, n); },
-      heal(n) { if (n > 0) run.player.hp = Math.min(run.player.maxHp, run.player.hp + n); },
+      lv,
+      mul: M,
+      draw(n) { if (n > 0) drawCards(run, n); },
+      soulfire(n) { if (n > 0) addStatus(run, c.player, 'soulfire', M(n), true); },
+      weaknessAll(n) {
+        if (n <= 0) return;
+        for (const e of living()) addStatus(run, e, 'weakness', M(n));
+      },
+      block(n) { if (n > 0) gainPlayerBlock(run, M(n)); },
+      heal(n) { if (n > 0) run.player.hp = Math.min(run.player.maxHp, run.player.hp + M(n)); },
       dmgRandom(n) {
         const alive = living();
         if (n <= 0 || !alive.length) return;
-        hitEnemy(run, RNG.pick(run, alive), n, { noRetaliate: true });
+        hitEnemy(run, RNG.pick(run, alive), M(n), { noRetaliate: true });
         sweepDead(run);
       },
       dmgAll(n) {
         if (n <= 0 || !living().length) return;
-        for (const e of living()) hitEnemy(run, e, n, { noRetaliate: true });
+        for (const e of living()) hitEnemy(run, e, M(n), { noRetaliate: true });
         sweepDead(run);
       },
       vulnRandom(n) {
         const alive = living();
         if (n <= 0 || !alive.length) return;
-        addStatus(run, RNG.pick(run, alive), 'vuln', n);
+        addStatus(run, RNG.pick(run, alive), 'vuln', M(n));
       },
-      str(n) { if (n > 0) addStatus(run, c.player, 'str', n, true); },
-      barrier(n) { if (n > 0) addStatus(run, c.player, 'barrier', n, true); },
-      light(n) { if (c && c.light && n > 0) c.light.val = Math.min(c.light.max, c.light.val + n); },
-      cudgel(n) { if (n > 0) addStatus(run, c.player, 'cudgel', n, true); },
-      ce(n) { if (n > 0) c.ce = Math.min(ceMax(run), (c.ce || 0) + n); },
+      str(n) { if (n > 0) addStatus(run, c.player, 'str', M(n), true); },
+      barrier(n) { if (n > 0) addStatus(run, c.player, 'barrier', M(n), true); },
+      light(n) { if (c && c.light && n > 0) c.light.val = Math.min(c.light.max, c.light.val + M(n)); },
+      cudgel(n) { if (n > 0) addStatus(run, c.player, 'cudgel', M(n), true); },
+      ce(n) { if (n > 0) c.ce = Math.min(ceMax(run), (c.ce || 0) + M(n)); },
       field(n) { addField(run, n); },
-      gold(n) { run.player.gold = Math.max(0, run.player.gold + n); },
+      gold(n) { run.player.gold = Math.max(0, run.player.gold + M(n)); },
       token(id, n) {
         for (let i = 0; i < n; i++) {
           if (!c || c.hand.length >= 10) break;
@@ -1096,7 +1143,7 @@
       kind, turn: 0, over: false, won: false,
       enemies,
       hand: [], draw: RNG.shuffle(run, deckCopy), discard: [], exhaust: [],
-      player: { block: 0, statuses: {}, energy: 0, maxEnergy: 3 + relicVal(run, 'energyBonus') },
+      player: { block: 0, statuses: {}, energy: 0, maxEnergy: 3 + relicVal(run, 'energyBonus') + (run.daily === 'turbo' ? 1 : 0) },
       hpLostThisTurn: 0, permBoosts: {}, shivBonus: 0, impBonus: 0, kills: 0,
       firstAttackUsed: false, firstSkillUsed: false, pendingAttackBonus: 0,
       pending: null, cardsPlayed: 0, playedIds: [], techniqueUsed: false,
@@ -1161,8 +1208,19 @@
     // 主题:伙伴的战斗开始效果
     for (const aid of (run.player.allies || [])) {
       const d = THEMES.allyMap && THEMES.allyMap[aid];
-      if (d && d.combatStart) d.combatStart(makeAllyCtx(run));
+      if (d && d.combatStart) d.combatStart(makeAllyCtx(run, aid));
     }
+    // 主题:双人组合羁绊(全部伙伴都在场时生效)
+    const th2 = themeOf(run);
+    if (th2 && th2.duos) {
+      for (const duo of th2.duos) {
+        if (duo.ids.every(id => (run.player.allies || []).includes(id))) {
+          if (duo.combatStart) duo.combatStart(makeAllyCtx(run));
+          pushEv(run, { t: 'text', msg: '🤝 羁绊「' + duo.name + '」发动:' + duo.note });
+        }
+      }
+    }
+    void th2;
   }
 
   function startPlayerTurn(run, first) {
@@ -1194,6 +1252,15 @@
     if (owned(run, 'xy_goldhoop')) addStatus(run, c.player, 'cudgel', 1, true);
     const majesty = statusOf(c.player, 'majesty');
     if (majesty > 0) addStatus(run, c.player, 'cudgel', 2 * majesty, true);
+    /* ---- v5 新状态:每回合增益 ---- */
+    const soulgain = statusOf(c.player, 'soulgain');
+    if (soulgain > 0) addStatus(run, c.player, 'soulfire', soulgain, true);
+    const eyerit = statusOf(c.player, 'eyeritual');
+    if (eyerit > 0) addStatus(run, c.player, 'eye', Math.max(1, Math.round(eyerit * (owned(run, 'mysteye') ? 1.5 : 1))), true);
+    const cegen = statusOf(c.player, 'cegen');
+    if (cegen > 0) c.ce = Math.min(ceMax(run), (c.ce || 0) + cegen);
+    const lightrit = statusOf(c.player, 'lightritual');
+    if (lightrit > 0 && c.light) c.light.val = Math.min(c.light.max, c.light.val + lightrit);
     const unseenDmg = statusOf(c.player, 'unseen');
     if (unseenDmg > 0) {
       const aliveU = c.enemies.filter(e => !e.dead);
@@ -1376,6 +1443,14 @@
     }
     for (const e of c.enemies) {
       if (e.dead || run.screen === 'gameover') continue;
+      // 词缀回合效果
+      if (e.affix) {
+        e._affixTurn = (e._affixTurn || 0) + 1;
+        if (e.affix === 'cursed' && RNG.chance(run, 0.35)) {
+          addStatus(run, c.player, 'weak', 1, true);
+          pushEv(run, { t: 'text', msg: e.affixName + '诅咒侵蚀:你获得了虚弱' });
+        }
+      }
       // 主题:「封锁」使敌人下一回合无法行动
       const sealAction = statusOf(e, 'sealAction');
       if (sealAction > 0) {
@@ -1388,6 +1463,17 @@
       e._last = e.move;
       const A = makeEnemyCtx(run, e);
       move.exec(A, e);
+      // 词缀:行动后结算
+      if (e.affix && !e.dead) {
+        if (e.affix === 'vampiric' && e.hp < e.maxHp) {
+          e.hp = Math.min(e.maxHp, e.hp + 3);
+          pushEv(run, { t: 'text', msg: e.affixName + '吸血:' + e.name + ' 回复了 3 点生命' });
+        }
+        if (e.affix === 'shielded' && e._affixTurn % 4 === 0) {
+          e.block += 5;
+          pushEv(run, { t: 'text', msg: e.affixName + '固守:' + e.name + ' 获得了格挡' });
+        }
+      }
       // 敌人回合结束:减益递减
       for (const k of ['vuln', 'weak', 'frail']) {
         if ((e.statuses[k] || 0) > 0) addStatus(run, e, k, -1);
@@ -1412,7 +1498,16 @@
     // 主题:伙伴的战斗胜利效果
     for (const aid of (run.player.allies || [])) {
       const d = THEMES.allyMap && THEMES.allyMap[aid];
-      if (d && d.onVictory) d.onVictory(makeAllyCtx(run));
+      if (d && d.onVictory) d.onVictory(makeAllyCtx(run, aid));
+    }
+    // 主题:双人羁绊的胜利效果
+    const thV = themeOf(run);
+    if (thV && thV.duos) {
+      for (const duo of thV.duos) {
+        if (duo.onVictory && duo.ids.every(id => (run.player.allies || []).includes(id))) {
+          duo.onVictory(makeAllyCtx(run));
+        }
+      }
     }
     // 奖励
     const rewards = [];
@@ -1421,7 +1516,13 @@
     else if (c.kind === 'elite') gold = RNG.int(run, 25, 35);
     else gold = RNG.int(run, 10, 20);
     gold += relicVal(run, 'goldCombatBonus');
+    // 每日「精英猎人」:精英金币 ×2
+    if (c.kind === 'elite' && run.daily === 'elitehunter') gold *= 2;
+    // 词缀敌人额外赏金
+    gold += 8 * c.enemies.filter(e => e.dead && e.affix).length;
     rewards.push({ type: 'gold', amount: gold });
+    // 每日「血月」:胜利后回满生命
+    if (run.daily === 'bloodmoon') run.player.hp = run.player.maxHp;
     // 卡牌奖励
     const nCards = 3 + relicVal(run, 'cardRewardBonus');
     const options = rollCardReward(run, nCards);
@@ -1465,6 +1566,8 @@
     const lucky = owned(run, 'luckylens');
     const out = [];
     const used = new Set();
+    // 每日挑战「诅咒之地」:卡牌奖励 +1 张
+    if (run.daily === 'cursedland') n += 1;
     // 主题局:一部分奖励从主题专属卡池中抽取,保证联动牌持续出现
     const themeQuota = theme ? Math.ceil(n * 0.6) : 0;
     for (let i = 0; i < n; i++) {
@@ -1488,12 +1591,93 @@
       used.add(id);
       out.push(id);
     }
+    // 客串卡:主题局 1.5% 概率,某个选项被替换为其他主题的牌
+    if (theme && out.length && RNG.chance(run, 0.015)) {
+      const others = THEMES.all.filter(t => t.id !== theme.id);
+      const other = RNG.pick(run, others);
+      const opool = (other.pool || []).filter(id => CARDS.get(id) && CARDS.get(id).rarity !== 'basic');
+      if (opool.length) {
+        const gi = RNG.int(run, 0, out.length - 1);
+        out[gi] = RNG.pick(run, opool);
+      }
+    }
     return out;
+  }
+
+  /* ================= v5:难度 / 进阶 / 每日挑战 / 敌人词缀 ================= */
+  const DIFF_MULTS = {
+    easy: { hp: 0.85, dmg: 0.85, score: 0.8, label: '轻松' },
+    normal: { hp: 1, dmg: 1, score: 1, label: '标准' },
+    hard: { hp: 1.15, dmg: 1.15, score: 1.25, label: '困难' }
+  };
+
+  const DAILY_RULES = [
+    { id: 'cheap', name: '廉价魔力', desc: '所有卡牌费用 -1,最大生命 -30%' },
+    { id: 'elitehunter', name: '精英猎人', desc: '精英出现率大增,精英悬赏金币 ×2' },
+    { id: 'bloodmoon', name: '血月', desc: '敌人伤害 +20%,每场战斗胜利后回满生命' },
+    { id: 'rich', name: '贫穷贵公子', desc: '起始金币 500,商店价格 ×2' },
+    { id: 'glass', name: '玻璃大炮', desc: '最大生命 50,每进入一层获得 1 张随机升级牌' },
+    { id: 'cursedland', name: '诅咒之地', desc: '起始污染 +3,卡牌奖励 +1 张' },
+    { id: 'turbo', name: ' turbo 魔力', desc: '每回合能量 +1,敌人生命 +25%' },
+    { id: 'giantslayer', name: '巨人杀手', desc: '敌人生命 +30%,对 BOSS 伤害 +50%' }
+  ];
+
+  const AFFIXES = {
+    shielded: { name: '壁垒', art: '🛡️', hpMult: 1, desc: '开场及每 3 回合获得格挡' },
+    tough: { name: '坚韧', art: '💚', hpMult: 1.4, desc: '生命 +40%' },
+    swift: { name: '迅捷', art: '⚡', hpMult: 0.9, desc: '伤害 +25%,生命 -10%' },
+    thorny: { name: '荆棘', art: '🌵', hpMult: 1, desc: '被攻击时反伤 3 点' },
+    vampiric: { name: '吸血', art: '🩸', hpMult: 1, desc: '每回合结束时回复 4 点生命' },
+    cursed: { name: '诅咒', art: '☠️', hpMult: 1, desc: '每回合 35% 几率使你虚弱' }
+  };
+  const AFFIX_KEYS = Object.keys(AFFIXES);
+
+  // 应用难度/进阶/每日参数:必须在 genMap 之前调用
+  function applyRunOpts(run, opts) {
+    opts = opts || {};
+    run.difficulty = DIFF_MULTS[opts.difficulty] ? opts.difficulty : 'normal';
+    run.ascension = Math.max(0, Math.min(20, opts.ascension || 0));
+    const d = DIFF_MULTS[run.difficulty];
+    const asc = run.ascension;
+    run.enemyHpMult = d.hp * (1 + 0.07 * asc);
+    run.enemyDmgMult = d.dmg * (1 + 0.04 * asc);
+    if (opts.daily && DAILY_RULES.some(r => r.id === opts.daily)) {
+      run.daily = opts.daily;
+      if (run.daily === 'rich') run.player.gold = 500;
+      if (run.daily === 'glass') { run.player.maxHp = 50; run.player.hp = 50; }
+      if (run.daily === 'cheap') { run.player.maxHp = Math.max(30, Math.floor(run.player.maxHp * 0.7)); run.player.hp = run.player.maxHp; }
+      if (run.daily === 'cursedland' && run.player.curse !== undefined) run.player.curse = (run.player.curse || 0) + 3;
+      if (run.daily === 'turbo') run.enemyHpMult *= 1.25;
+      if (run.daily === 'giantslayer') run.enemyHpMult *= 1.3;
+      if (run.daily === 'bloodmoon') run.enemyDmgMult *= 1.2;
+    }
+    if (asc > 0) {
+      // 进阶:起始生命递减(不低于 55%)
+      const cut = Math.min(Math.floor(run.player.maxHp * 0.45), 2 * asc);
+      run.player.maxHp -= cut; run.player.hp -= cut;
+    }
+  }
+
+  function scoreMult(run) {
+    const d = DIFF_MULTS[run.difficulty] || DIFF_MULTS.normal;
+    let m = d.score * (1 + 0.15 * (run.ascension || 0));
+    if (run.daily) m *= 1.5;
+    return m;
+  }
+
+  function dailySeed(dateStr) {
+    // YYYYMMDD -> 整数种子
+    return parseInt(String(dateStr).replace(/-/g, ''), 10) || 20260101;
+  }
+  function dailyPick(dateStr) {
+    const seed = dailySeed(dateStr);
+    const rule = DAILY_RULES[seed % DAILY_RULES.length];
+    return rule;
   }
 
   /* ================= Engine 主对象 ================= */
   const Engine = {
-    newRun(cls, seed) {
+    newRun(cls, seed, opts) {
       const run = {
         v: 1,
         seed: seed === undefined ? RNG.newSeed() : seed,
@@ -1517,10 +1701,12 @@
         stats: { score: 0 }
       };
       run.rng = { s: run.seed };
+      applyRunOpts(run, opts);
       run.map = genMap(run);
       run.evts = [];
       this._run = run;
       bumpStats('runs');
+      if (GS.Codex) for (const x of run.player.deck) GS.Codex.record('cards', x.id);
       saveRun(run);
       return run;
     },
@@ -1529,7 +1715,7 @@
     setRun(run) { this._run = run; },
 
     /* ---------- 联动主题开局 ---------- */
-    newThemeRun(themeId, seed, starterAllyId) {
+    newThemeRun(themeId, seed, starterAllyId, opts) {
       const theme = THEMES.get(themeId);
       if (!theme) throw new Error('未知联动主题: ' + themeId);
       // 初始伙伴:必须是该主题标记为 starter 的角色
@@ -1563,10 +1749,15 @@
         stats: { score: 0 }
       };
       run.rng = { s: run.seed };
+      applyRunOpts(run, opts);
       run.map = genMap(run);
       run.evts = [];
       this._run = run;
       bumpStats('runs');
+      if (GS.Codex) {
+        for (const x of run.player.deck) GS.Codex.record('cards', x.id);
+        for (const aid of run.player.allies || []) GS.Codex.record('allies', aid);
+      }
       saveRun(run);
       return run;
     },
@@ -1670,6 +1861,15 @@
       run.path.push({ row, i });
       run.floorTotal += 1;
       if (owned(run, 'cornucopia')) { run.player.gold += 10; }
+      // 每日「玻璃大炮」:每层获得 1 张随机升级牌
+      if (run.daily === 'glass') {
+        const pool = themedCardPool(run, null).length ? themedCardPool(run, null) : CARDS.pool(run.player.cls, 'common');
+        if (pool.length) {
+          const id = RNG.pick(run, pool);
+          run.player.deck.push({ id, up: 1 });
+          if (GS.Codex) GS.Codex.record('cards', id);
+        }
+      }
       run.event = null; run.eventResult = null; run.restDone = false; run.rewards = null;
       // 主题:每进入新一层,镜域污染加深
       const theme = themeOf(run);
@@ -1729,7 +1929,14 @@
           break;
         }
         case 'event': {
-          run.event = EVENTS.random(run);
+          // 主题局:80% 出主题专属事件,20% 出通用事件
+          const th = themeOf(run);
+          if (th && th.events && th.events.length && RNG.chance(run, 0.8)) {
+            run.event = RNG.pick(run, th.events);
+          } else {
+            run.event = EVENTS.random(run);
+          }
+          if (GS.Codex && run.event && run.event.id) GS.Codex.record('events', run.event.id);
           run.eventResult = null;
           run.screen = 'event';
           break;
@@ -1751,6 +1958,8 @@
         const cd = run.combat.costDelta;
         if (cd && cd.count > 0 && typeof cost === 'number') cost = Math.max(0, cost + cd.n);
       }
+      // 每日挑战「廉价魔力」:所有卡牌费用 -1
+      if (run.daily === 'cheap' && typeof cost === 'number' && cost > 0) cost -= 1;
       return cost;
     },
     effectiveView(run, inst) {
@@ -1999,6 +2208,7 @@
       const r = run.rewards[rewardIdx];
       if (!r || r.type !== 'card' || r.taken) return;
       run.player.deck.push({ id: cardId, up: 0 });
+      if (GS.Codex) GS.Codex.record('cards', cardId);
       r.taken = true;
       saveRun(run);
     },
@@ -2022,6 +2232,7 @@
             bumpStats('wins');
             bumpClassWin(run.cls);
             Engine.onVictoryScore(run);
+            Engine.onRunWon(run);
             saveRun(run);
             return;
           }
@@ -2044,6 +2255,7 @@
           bumpStats('wins');
           bumpClassWin(run.cls);
           Engine.onVictoryScore(run);
+          Engine.onRunWon(run);
           saveRun(run);
           return;
         }
@@ -2082,6 +2294,7 @@
       let mult = 1;
       if (owned(run, 'membercard')) mult *= 0.5;
       if (owned(run, 'ancientcoin')) mult *= 0.8;
+      if (run.daily === 'rich') mult *= 2;
       return Math.max(1, Math.round(base * mult));
     },
     buyShopItem(run, kind, idx) {
@@ -2126,8 +2339,68 @@
         s.removeUsed = true;
         s.awaitingRemove = true; // UI 弹出选牌
       }
+      if (GS.Codex) {
+        if (kind === 'card' && s.cards && s.cards[idx]) GS.Codex.record('cards', s.cards[idx].id);
+        if (kind === 'ally' && s.allies && s.allies[idx]) GS.Codex.record('allies', s.allies[idx].id);
+      }
       saveRun(run);
       return true;
+    },
+
+    /* ---------- v5:伙伴训练 / 伙伴主动技能 ---------- */
+    allyTrainPrice(run, allyId) {
+      const lv = (run.player.allyLv && run.player.allyLv[allyId]) || 1;
+      if (lv >= 3) return null; // 已满级
+      return 90 + 70 * (lv - 1);
+    },
+    buyAllyTrain(run, allyId) {
+      if (!(run.player.allies || []).includes(allyId)) return false;
+      const price = this.allyTrainPrice(run, allyId);
+      if (price === null || run.player.gold < price) return false;
+      run.player.gold -= price;
+      if (!run.player.allyLv) run.player.allyLv = {};
+      run.player.allyLv[allyId] = (run.player.allyLv[allyId] || 1) + 1;
+      saveRun(run);
+      return true;
+    },
+    allyLv(run, allyId) { return (run.player.allyLv && run.player.allyLv[allyId]) || 1; },
+    allyActiveInfo(run) {
+      const c = run.combat;
+      if (!c) return [];
+      return (run.player.allies || []).map(aid => {
+        const d = THEMES.allyMap && THEMES.allyMap[aid];
+        const used = !!(c.allyActiveUsed && c.allyActiveUsed[aid]);
+        return { id: aid, name: d ? d.name : aid, active: d && d.active ? d.active : null, used, lv: this.allyLv(run, aid) };
+      });
+    },
+    useAllyActive(run, aid) {
+      const c = run.combat;
+      if (!c || c.over || run.screen !== 'combat') return false;
+      if (!(run.player.allies || []).includes(aid)) return false;
+      const d = THEMES.allyMap && THEMES.allyMap[aid];
+      if (!d || !d.active) return false;
+      if (!c.allyActiveUsed) c.allyActiveUsed = {};
+      if (c.allyActiveUsed[aid]) return false;
+      c.allyActiveUsed[aid] = true;
+      d.active.fx(makeAllyCtx(run, aid));
+      pushEv(run, { t: 'text', msg: '⚡ ' + d.name + '发动「' + d.active.name + '」!' });
+      sweepDead(run);
+      if (c.over) finishCombat(run);
+      checkPlayerDeath(run);
+      saveRun(run);
+      return true;
+    },
+
+    /* ---------- v5:双分支升级(锻造时选 A/B) ---------- */
+    resolvePendingBranch(run, deckIdx, path) {
+      const p = run.pending;
+      if (!p || p.type !== 'smith') return;
+      const inst = run.player.deck[deckIdx];
+      if (!inst || inst.up || !CARDS.upgradeable(inst.id)) return;
+      inst.up = 1;
+      if (path === 2 && CARDS.branchable(inst.id)) inst.path = 2;
+      run.pending = null;
+      saveRun(run);
     },
     removePrice(run) { return 75 + 25 * (run.removals || 0); },
     shopRemoveCard(run, deckIdx) {
@@ -2262,7 +2535,22 @@
         countCards(pred) { return run.player.deck.filter(x => pred(CARDS.get(x.id))).length; },
         removeWhere(pred) { run.player.deck = run.player.deck.filter(x => !pred(CARDS.get(x.id))); },
         transform() { run.pending = { type: 'transform', n: 1 }; },
-        duplicate() { run.pending = { type: 'duplicate', n: 1 }; }
+        duplicate() { run.pending = { type: 'duplicate', n: 1 }; },
+        /* ---- v5:主题事件辅助 ---- */
+        gainThemeCard(rar) {
+          const ids = themedCardPool(run, rar);
+          if (!ids.length) return;
+          const id = RNG.pick(run, ids);
+          run.player.deck.push({ id, up: 0 });
+          if (global.GS.Codex) global.GS.Codex.record('cards', id);
+          return id;
+        },
+        addCurse(n) {
+          if (run.player.curse !== undefined) run.player.curse = (run.player.curse || 0) + n;
+        },
+        reduceCurse(n) {
+          if (run.player.curse !== undefined) run.player.curse = Math.max(0, (run.player.curse || 0) - n);
+        }
       };
     },
     makeEventCtx(run) { return this.makeWorldCtx(run); },
@@ -2334,7 +2622,8 @@
 
     /* ---------- 结束 ---------- */
     score(run) {
-      return run.floorTotal * 2 + Math.floor(run.player.gold / 10) + run.player.stats.bosses * 50 + (run.player.stats.won ? 500 : 0);
+      const base = run.floorTotal * 2 + Math.floor(run.player.gold / 10) + run.player.stats.bosses * 50 + (run.player.stats.won ? 500 : 0);
+      return Math.floor(base * scoreMult(run));
     },
 
     drainEvents(run) {
@@ -2492,6 +2781,8 @@
   Engine.loadStats = loadStats;
   Engine._testStartCombat = startCombat; // 测试钩子
   Engine._testGenShop = genShop; // 测试钩子
+  Engine._testSpawn = spawnEnemy; // 测试钩子
+  Engine._testRewardCards = makeRewardCards; // 测试钩子
   Engine.bumpStats = bumpStats;
   Engine.onGameOver = function (run) {
     bumpStats('losses');
@@ -2527,6 +2818,55 @@
     const s = loadStats();
     if (sc > s.best) { s.best = sc; saveStats(s); }
     return sc;
+  };
+  // v5:通关后处理 —— 解锁下一级进阶 / 记录每日挑战
+  Engine.runKey = function (run) { return run.theme ? ('t:' + run.theme) : ('c:' + run.cls); };
+  Engine.getAscension = function (key) {
+    const s = loadStats();
+    return Math.min(20, (s.asc && s.asc[key]) || 0);
+  };
+  Engine.setAscension = function (key, lv) {
+    const s = loadStats();
+    s.asc = s.asc || {};
+    s.asc[key] = Math.max(s.asc[key] || 0, Math.min(20, lv));
+    saveStats(s);
+  };
+  Engine.onRunWon = function (run) {
+    const key = Engine.runKey(run);
+    const cur = Engine.getAscension(key);
+    if ((run.ascension || 0) >= cur && cur < 20) Engine.setAscension(key, cur + 1);
+    if (run.daily) {
+      const s = loadStats();
+      s.daily = s.daily || {};
+      s.daily.date = todayStr();
+      s.daily.won = true;
+      s.daily.score = Engine.score(run);
+      saveStats(s);
+    }
+  };
+  function todayStr() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  Engine.todayStr = todayStr;
+  Engine.dailyInfo = function (dateStr) {
+    const ds = dateStr || todayStr();
+    const seed = dailySeed(ds);
+    const rule = dailyPick(ds);
+    const themes = THEMES.all;
+    const theme = themes[seed % themes.length];
+    return { date: ds, seed, rule, theme };
+  };
+  Engine.dailyRules = DAILY_RULES;
+  Engine.affixes = AFFIXES;
+  // 图鉴里程碑发奖
+  Engine.grantPoints = function (n) {
+    if (!n || n <= 0) return 0;
+    const s = loadStats();
+    s.points += n;
+    saveStats(s);
+    return n;
   };
   Engine.newRunPublic = Engine.newRun;
 

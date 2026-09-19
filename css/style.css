@@ -751,3 +751,54 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
   .card .cname { font-size: 13px; }
   .card .cdesc { font-size: 11px; }
 }
+
+/* ================= v5:难度/进阶/每日/图鉴/词缀/伙伴技能 ================= */
+.diff-opts { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px; }
+.diff-chip { padding: 5px 12px; border-radius: 999px; border: 1px solid #3a3550; background: rgba(30, 26, 48, .8);
+  color: #b9b4d6; font-size: 12px; cursor: pointer; transition: all .15s; }
+.diff-chip.active { border-color: var(--gold); color: #f0c96a; background: rgba(70, 56, 24, .5); box-shadow: 0 0 12px rgba(240, 201, 106, .25); }
+.asc-step { display: flex; align-items: center; gap: 8px; padding: 2px 6px; }
+.asc-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #3a3550; background: rgba(30, 26, 48, .8); color: #d8d4ee; cursor: pointer; font-size: 15px; line-height: 1; }
+.asc-btn:disabled { opacity: .35; cursor: default; }
+.asc-label { font-size: 12px; color: #b9b4d6; }
+.affix-badge { position: absolute; top: 34px; right: 50%; transform: translateX(50%); z-index: 3;
+  background: linear-gradient(135deg, rgba(120, 30, 30, .92), rgba(60, 15, 15, .92)); border: 1px solid #d36; border-radius: 8px;
+  padding: 1px 7px; font-size: 11px; color: #ffb3b3; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+.ally-icon { position: relative; }
+.ally-icon .lv-badge { position: absolute; bottom: -3px; right: -4px; background: #2b2140; border: 1px solid var(--gold);
+  color: var(--gold); font-size: 9px; border-radius: 6px; padding: 0 3px; z-index: 3; }
+.ally-icon .act-mark { position: absolute; top: -3px; right: -4px; font-size: 11px; z-index: 3; filter: drop-shadow(0 0 4px rgba(110, 231, 255, .9)); }
+.ally-icon .act-mark.used { filter: none; opacity: .55; font-size: 9px; }
+.ally-icon.active-ready { cursor: pointer; animation: allyReady 1.6s ease-in-out infinite; }
+.ally-icon.active-ready::after { content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  border: 1.5px solid #6ee7ff; opacity: .7; pointer-events: none; }
+@keyframes allyReady { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.ally-syn.act { color: #6ee7ff; }
+.duo-box { margin-top: 8px; padding: 6px 10px; border-top: 1px dashed #3a3550; max-width: 860px; }
+.duo-title { font-size: 12px; color: #9aa3c7; margin-bottom: 4px; }
+.duo-line { font-size: 12px; color: #b9b4d6; line-height: 1.9; }
+.duo-line .duo-note { color: #9aa3c7; }
+.duo-line.hit { color: #f0c96a; }
+.duo-line .duo-mark { color: #f0c96a; font-size: 11px; }
+.branch-row { display: flex; gap: 14px; justify-content: center; margin: 8px 0; }
+.branch-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 8px;
+  border: 1px solid #3a3550; border-radius: 12px; transition: all .15s; }
+.branch-cell:hover { border-color: var(--gold); box-shadow: 0 0 16px rgba(240, 201, 106, .25); }
+.branch-cell.a .branch-tag { color: #6ee7ff; font-size: 12px; }
+.branch-cell.b .branch-tag { color: #ff9a76; font-size: 12px; }
+.shop-item.train-item .train-lv { color: var(--gold); font-size: 11px; }
+.map-difftag { font-size: 12px; color: #b9b4d6; margin-top: 2px; }
+.daily-banner { font-size: 13px; color: #c9b8ff; background: rgba(50, 36, 84, .6); border: 1px solid #6a4a9a;
+  border-radius: 10px; padding: 5px 12px; margin-top: 6px; }
+.asc-unlock { font-size: 14px; color: var(--gold); margin: 4px 0; text-align: center; }
+.codex-modal { max-width: 720px; }
+.codex-claimed { background: rgba(40, 66, 48, .6); border: 1px solid #4a8; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; font-size: 13px; }
+.codex-sec { margin-bottom: 10px; }
+.codex-sec-title { font-size: 14px; color: #d8d4ee; display: flex; align-items: center; gap: 8px; }
+.codex-count { color: #9aa3c7; font-size: 12px; }
+.codex-bar { flex: 1; height: 5px; border-radius: 3px; background: #241f38; overflow: hidden; }
+.codex-fill { height: 100%; background: linear-gradient(90deg, #6ee7ff, #6effa8); border-radius: 3px; }
+.codex-list { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; max-height: 130px; overflow-y: auto; }
+.codex-item { font-size: 11px; padding: 1px 7px; border-radius: 7px; background: #241f38; color: #6b6590; }
+.codex-item.got { color: #d8e8ff; background: rgba(50, 66, 100, .8); border: 1px solid #3a4a7a; }
+.codex-ms { font-size: 12px; color: #9aa3c7; }
