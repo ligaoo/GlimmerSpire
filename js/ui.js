@@ -1074,7 +1074,7 @@
     classCard(cls, meta, isTheme) {      const selected = isTheme ? this.selTheme === meta.theme : (!this.selTheme && this.selClass === cls);
       const card = el('div', 'class-card' + (selected ? ' selected' : '') + (isTheme ? ' theme-card' : ''),
         `<div class="class-art"><span class="art-emoji">${meta.art}</span>` +
-        (isTheme ? '' : `<img src="assets/heroes/${cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">`) +
+        `<img src="assets/${isTheme ? 'themes/' + meta.theme : 'heroes/' + cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">` +
         `</div><div class="class-name">${esc(meta.name)}</div>` +
         (isTheme && meta.tag ? `<div class="class-tag">${esc(meta.tag)}</div>` : '') +
         `<div class="class-desc">${meta.desc}</div><div class="class-relic">${meta.relic}</div>`);

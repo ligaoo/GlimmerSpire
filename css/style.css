@@ -263,6 +263,7 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 .class-card.theme-card { background: linear-gradient(180deg, rgba(44, 30, 60, .95), rgba(20, 14, 36, .95)); border-color: #6a4a9a; }
 .class-card.theme-card:hover { border-color: #c9a6ff; box-shadow: 0 12px 40px rgba(201, 166, 255, .25); }
 .class-card.theme-card.selected { border-color: var(--gold); }
+.theme-card .class-art img { border-radius: 14px; box-shadow: 0 6px 20px rgba(0, 0, 0, .55); }
 .class-tag {
   display: inline-block; margin: -2px 0 8px; padding: 2px 12px; font-size: 12px;
   border-radius: 999px; background: rgba(201, 166, 255, .12); color: #d8c0ff; border: 1px solid #6a4a9a;

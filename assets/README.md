@@ -8,6 +8,7 @@
 - 怪物:`assets/enemies/<id>.png` — 建议 512×512 透明底 PNG,主体居中占 ~80%
 - 英雄:`assets/heroes/<职业id>.png` — 建议 512×512 透明底,半身立绘
 - 伙伴:`assets/ally/<伙伴id>.png` — 建议 224×224 方形 PNG,人脸居中(头像按圆形裁剪显示)
+- 主题封面:`assets/themes/<主题id>.png` — 建议 400×400 方形 PNG,主体居中(菜单主题卡显示)
 
 ## 英雄(3 张)
 
@@ -72,3 +73,16 @@ eyetyrant 巨眼暴君
 
 其余伙伴(神秘复苏 / 奥特曼 / 妖精的尾巴等)暂无合适图片,自动回退 emoji 显示;
 补图时按 `assets/ally/<伙伴id>.png` 放入即可,无需改代码。
+
+## 联动主题封面(6 张)
+
+菜单「联动主题」页每张主题卡的封面图,文件名 = 主题 id:
+
+| 文件名 | 主题 | 画面 |
+|--------|------|------|
+| themes/mystery.png | 神秘复苏 | 黑烛滴红蜡的哥特灵异氛围 |
+| themes/jjk.png | 咒术回战 | 五条悟(白发黑眼罩·雨夜霓虹) |
+| themes/rezero.png | 从零开始的异世界 | 昴 / 爱蜜莉雅 / 蕾姆群像 |
+| themes/ultraman.png | 奥特曼 | 泰罗奥特曼战斗姿势 |
+| themes/journey.png | 西游记 | 金甲孙悟空 |
+| themes/fairytail.png | 妖精的尾巴 | 艾露莎双刀战斗姿态 |
