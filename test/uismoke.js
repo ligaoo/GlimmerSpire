@@ -151,7 +151,10 @@ const THEME_PROBE = {
 };
 for (const themeId of ALL_THEMES.map(t => t.id)) {
   step('newThemeRun ' + themeId, () => {
-    UI.run = Engine.newThemeRun(themeId, 4242);
+    const t = ALL_THEMES.find(x => x.id === themeId);
+    const starters = (t.allyDefs || []).filter(a => a.starter);
+    UI.selAlly = starters[0] ? starters[0].id : null;
+    UI.run = Engine.newThemeRun(themeId, 4242, UI.selAlly || undefined);
     UI.selTheme = themeId;
     // 灌水:保证能走到后期画面(胜利/下一段/商店),只验证渲染不验证平衡
     UI.run.player.maxHp = 900; UI.run.player.hp = 900; UI.run.player.gold = 5000;

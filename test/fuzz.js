@@ -991,6 +991,81 @@ function mechanicTests() {
       assert(run.player.gold >= goldB + 35, `张伟的金币未到账: ${goldB} -> ${run.player.gold}`);
     }
   }
+  // 伙伴:初始伙伴选择(仅 starter 可选)与商店限定
+  {
+    // 合法初始伙伴
+    const run = Engine.newThemeRun('rezero', 9210, 'rz_a_emilia');
+    assert(run.player.allies.length === 1 && run.player.allies[0] === 'rz_a_emilia', '初始伙伴未生效');
+    // 商店限定角色不能作为初始伙伴
+    const run2 = Engine.newThemeRun('rezero', 9211, 'rz_a_beatrice');
+    assert(run2.player.allies.length === 0, '商店限定角色不应作为初始伙伴');
+    // 无效 id 静默忽略
+    const run3 = Engine.newThemeRun('rezero', 9212, 'mn_a_dog');
+    assert(run3.player.allies.length === 0, '跨主题伙伴不应作为初始伙伴');
+    // 每主题 starter 数量恰为 3
+    for (const t of GS.THEMES.all) {
+      const n = (t.allyDefs || []).filter(a => a.starter).length;
+      assert(n === 3, `[${t.id}] 初始伙伴应为 3 名,实际 ${n}`);
+    }
+    // 商店永远不出售 starter 伙伴
+    for (let k = 0; k < 30; k++) {
+      const r = Engine.newThemeRun('journey', 9213 + k, 'xy_a_sanzang');
+      r.player.gold = 999;
+      r.shop = Engine._testGenShop(r);
+      for (const it of (r.shop.allies || [])) {
+        const d = GS.THEMES.allyMap[it.id];
+        assert(d && !d.starter, `商店出售了初始伙伴: ${it.id}`);
+      }
+    }
+  }
+  // 伙伴:卡牌联动——爱蜜莉雅使冰枪术伤害 +4
+  {
+    const base = Engine.newThemeRun('rezero', 9215);
+    base.player.deck = [{ id: 'rz_icebrand', up: 0 }];
+    forceCombat(base, ['rz_dog'], 'normal');
+    const c0 = base.combat;
+    c0.enemies[0].hp = 9999; c0.enemies[0].maxHp = 9999; c0.enemies[0].block = 0;
+    const i0 = c0.hand.findIndex(h => h.id === 'rz_icebrand');
+    const hp0 = c0.enemies[0].hp;
+    Engine.playCard(base, i0, 0);
+    const dmg0 = hp0 - c0.enemies[0].hp;
+
+    const run = Engine.newThemeRun('rezero', 9216, 'rz_a_emilia');
+    run.player.deck = [{ id: 'rz_icebrand', up: 0 }];
+    forceCombat(run, ['rz_dog'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    const i = c.hand.findIndex(h => h.id === 'rz_icebrand');
+    const hp = c.enemies[0].hp;
+    Engine.playCard(run, i, 0);
+    const dmg = hp - c.enemies[0].hp;
+    assert(dmg === dmg0 + 4, `爱蜜莉雅联动未生效: 无伙伴 ${dmg0} vs 有伙伴 ${dmg}`);
+  }
+  // 伙伴:卡牌联动——蕾姆使鬼族之血额外 +1 力量
+  {
+    const run = Engine.newThemeRun('rezero', 9217, 'rz_a_rem');
+    run.player.deck = [{ id: 'rz_oniblood', up: 0 }];
+    forceCombat(run, ['rz_dog'], 'normal');
+    const c = run.combat;
+    const i = c.hand.findIndex(h => h.id === 'rz_oniblood');
+    if (i >= 0 && Engine.canPlay(run, i)) {
+      Engine.playCard(run, i, 0);
+      assert((c.player.statuses.str || 0) >= 3, `蕾姆联动未生效: 力量 ${c.player.statuses.str}`);
+    }
+  }
+  // 伙伴:卡牌联动——非对应卡牌不触发
+  {
+    const run = Engine.newThemeRun('ultraman', 9218, 'ul_a_seven');
+    run.player.deck = [{ id: 'ul_strike', up: 0 }];
+    forceCombat(run, ['ul_bemstar'], 'normal');
+    const c = run.combat;
+    c.enemies[0].hp = 9999; c.enemies[0].maxHp = 9999; c.enemies[0].block = 0;
+    const i = c.hand.findIndex(h => h.id === 'ul_strike');
+    const hp = c.enemies[0].hp;
+    Engine.playCard(run, i, 0);
+    // 手刀 6 + 污染 0 + 赛文无联动 = 6
+    assert(hp - c.enemies[0].hp === 6, `不应触发联动的卡牌被触发: ${hp - c.enemies[0].hp}`);
+  }
   // 主题:存档回环
   {
     const run = Engine.newThemeRun('mystery', 9011);
@@ -1335,7 +1410,10 @@ for (const theme of GS.THEMES.all) {
   let themeWins = 0, themeActs = 0, themeTotal = 0;
   for (let i = 0; i < themeRuns; i++) {
     const seed = (Math.random() * 4294967296) >>> 0;
-    const run = Engine.newThemeRun(theme.id, seed);
+    // 奇数种子带初始伙伴开局,偶数不带,两条路径都覆盖
+    const starters = (theme.allyDefs || []).filter(a => a.starter);
+    const starter = (seed % 2 === 1 && starters.length) ? starters[seed % starters.length].id : undefined;
+    const run = Engine.newThemeRun(theme.id, seed, starter);
     // 主题局由智能 Bot 驱动,验证专属卡池/敌人/镜域节点不会崩溃
     driveSmartRun(run, `theme ${theme.id}#${seed}`);
     themeTotal++;

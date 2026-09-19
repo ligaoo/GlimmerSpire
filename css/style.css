@@ -224,6 +224,32 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 .shop-item.ally-item .sub-name { font-size: 14px; color: #cfe9ff; margin: 4px 0; font-weight: bold; }
 .shop-item.ally-item .ally-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; min-height: 48px; }
 
+/* 主菜单:初始伙伴选择器 */
+.ally-picker { max-width: 860px; margin-top: 4px; }
+.ally-picker .shop-label { margin-bottom: 8px; }
+.ally-pick-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.ally-pick {
+  width: 158px; padding: 10px; border-radius: 12px; cursor: pointer; text-align: left;
+  background: rgba(20, 26, 51, .85); border: 2px solid #3a4570; transition: all .15s ease;
+}
+.ally-pick:hover { border-color: #7ab0ff; transform: translateY(-2px); }
+.ally-pick.selected {
+  border-color: var(--gold); background: rgba(60, 48, 20, .5);
+  box-shadow: 0 0 16px rgba(240, 200, 106, .3);
+}
+.ally-pick.shop-only { opacity: .6; cursor: help; filter: saturate(.6); }
+.ally-pick .ap-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.ally-pick .ap-art { font-size: 20px; }
+.ally-pick .ap-name { font-size: 13px; font-weight: bold; color: #cfe9ff; }
+.ally-pick .ap-shop {
+  font-size: 10px; padding: 1px 6px; border-radius: 999px;
+  background: rgba(90, 208, 160, .15); color: #5ad0a0; border: 1px solid #2a6a55;
+}
+.ally-pick .ap-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; min-height: 50px; }
+.ally-pick .ally-syn { font-size: 10px; color: #ffc0da; line-height: 1.5; margin-top: 4px; }
+.ally-pick .ally-syn.dim { color: #5a6488; }
+.ally-picker-hidden { display: none; }
+
 /* ================= 联动主题 ================= */
 .mode-tabs { display: flex; gap: 10px; }
 .mode-tab {

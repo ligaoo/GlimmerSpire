@@ -123,6 +123,7 @@
     discardPicks: [],
     selClass: 'warrior',
     selTheme: null,
+    selAlly: null,
     gameoverHandled: false,
 
     /* ================= 初始化 ================= */
@@ -395,6 +396,15 @@
         if (live.length) html += `<br><span style="color:#9aa3c7">${live.join(' · ')}</span>`;
       }
       if (extra.length) html += `<br><span style="color:#6ee7ff">${extra.join(' · ')}</span>`;
+      // 伙伴联动提示:已拥有联动伙伴时,在卡牌 tooltip 上标出
+      if (run && run.player && run.player.allies && run.player.allies.length) {
+        for (const aid of run.player.allies) {
+          const ad = GS.THEMES && GS.THEMES.allyMap && GS.THEMES.allyMap[aid];
+          if (ad && ad.synergy && ad.synergy.ids && ad.synergy.ids.includes(inst.id)) {
+            html += `<br><span style="color:#ffc0da">🔗 ${esc(ad.name)}·${esc(ad.synergy.name)}:${esc(ad.synergy.note)}</span>`;
+          }
+        }
+      }
       return html;
     },
 
@@ -983,6 +993,8 @@
         }
         wrap.appendChild(el('div', 'theme-hint',
           '联动主题是独立的卡组与闯关模式:专属卡池、专属敌人与 BOSS,以及随层数加深的「污染」与「领域」。'));
+        // 伙伴选择:开局选 1 名初始伙伴同行,其余「商店限定」角色只能在对局中的商店招募
+        wrap.appendChild(this.allyPicker());
       }
       wrap.appendChild(cards);
 
@@ -993,7 +1005,7 @@
         AudioFX.resume();
         AudioFX.play('relic');
         this.gameoverHandled = false;
-        this.run = this.selTheme ? Engine.newThemeRun(this.selTheme) : Engine.newRun(this.selClass);
+        this.run = this.selTheme ? Engine.newThemeRun(this.selTheme, undefined, this.selAlly || undefined) : Engine.newRun(this.selClass);
         this.update();
       };
       btns.appendChild(start);
@@ -1026,8 +1038,39 @@
       scr.appendChild(wrap);
     },
 
-    classCard(cls, meta, isTheme) {
-      const selected = isTheme ? this.selTheme === meta.theme : (!this.selTheme && this.selClass === cls);
+    /* 联动主题:初始伙伴选择器(开局选 1 名;商店限定角色仅展示) */
+    allyPicker() {
+      const theme = this.selTheme ? GS.THEMES.get(this.selTheme) : null;
+      if (!theme || !(theme.allyDefs || []).length) return el('div', 'ally-picker-hidden');
+      const starters = theme.allyDefs.filter(a => a.starter);
+      // 切换主题时重置默认选择
+      if (!starters.some(a => a.id === this.selAlly)) this.selAlly = starters.length ? starters[0].id : null;
+      const box = el('div', 'ally-picker');
+      box.appendChild(el('div', 'shop-label', '— 🤝 选择初始伙伴(开局同行 1 名)—'));
+      const row = el('div', 'ally-pick-row');
+      for (const a of theme.allyDefs) {
+        const sel = a.id === this.selAlly;
+        const chip = el('div', 'ally-pick' + (sel ? ' selected' : '') + (a.starter ? '' : ' shop-only'));
+        let syn = '';
+        if (a.synergy) {
+          syn = `<div class="ally-syn">🔗 ${esc(a.synergy.note)}</div>`;
+        } else {
+          syn = `<div class="ally-syn dim">🔗 暂无卡牌联动</div>`;
+        }
+        chip.innerHTML = `<div class="ap-head"><span class="ap-art">${a.art}</span><span class="ap-name">${esc(a.name)}</span>${a.starter ? '' : '<span class="ap-shop">🏪 商店限定</span>'}</div>` +
+          `<div class="ap-desc">${esc(a.desc)}</div>` + syn;
+        if (a.starter) {
+          chip.onclick = () => { AudioFX.play('click'); this.selAlly = a.id; this.render(); };
+        } else {
+          this.attachTip(chip, `<b>🏪 商店限定</b><br>${esc(a.name)}不会出现在初始选择中,<br>只能在镜域途中经由商店招募(每局商店随机出现)。`);
+        }
+        row.appendChild(chip);
+      }
+      box.appendChild(row);
+      return box;
+    },
+
+    classCard(cls, meta, isTheme) {      const selected = isTheme ? this.selTheme === meta.theme : (!this.selTheme && this.selClass === cls);
       const card = el('div', 'class-card' + (selected ? ' selected' : '') + (isTheme ? ' theme-card' : ''),
         `<div class="class-art"><span class="art-emoji">${meta.art}</span>` +
         (isTheme ? '' : `<img src="assets/heroes/${cls}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">`) +

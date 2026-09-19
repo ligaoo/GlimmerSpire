@@ -1529,9 +1529,15 @@
     setRun(run) { this._run = run; },
 
     /* ---------- 联动主题开局 ---------- */
-    newThemeRun(themeId, seed) {
+    newThemeRun(themeId, seed, starterAllyId) {
       const theme = THEMES.get(themeId);
       if (!theme) throw new Error('未知联动主题: ' + themeId);
+      // 初始伙伴:必须是该主题标记为 starter 的角色
+      let allies = [];
+      if (starterAllyId) {
+        const a = (theme.allyDefs || []).find(x => x.id === starterAllyId && x.starter);
+        if (a) allies = [a.id];
+      }
       const run = {
         v: 1, theme: theme.id,
         seed: seed === undefined ? RNG.newSeed() : seed,
@@ -1545,7 +1551,7 @@
           relics: [theme.starterRelic],
           deck: theme.starterDeck.map(id => ({ id, up: 0 })),
           curse: 0,
-          allies: [],
+          allies,
           stats: { enemies: 0, bosses: 0, cardsPlayed: 0 }
         },
         wardCharges: 0,
@@ -1849,6 +1855,14 @@
         }
         sweepDead(run);
       };
+      // 主题:伙伴联动——打出对应卡牌时,额外触发伙伴的专属效果
+      for (const aid of (run.player.allies || [])) {
+        const ad = THEMES.allyMap && THEMES.allyMap[aid];
+        if (ad && ad.synergy && ad.synergy.ids && ad.synergy.ids.includes(inst.id)) {
+          ad.synergy.fx(makeCardCtx(run, inst, target), inst, target);
+          pushEv(run, { t: 'text', msg: '🔗 ' + ad.name + '·' + (ad.synergy.name || '联动') + '!' });
+        }
+      }
       exec(false);
       const echoReady = (c.player.statuses.echo || 0) > 0 && c.cardsPlayed === 0 && !view.unplayable;
       // 移动卡牌去向(回响副本不再移动)
@@ -2389,10 +2403,11 @@
       const base = d.rarity === 'rare' ? RNG.int(run, 160, 190) : RNG.int(run, 140, 170);
       relics.push({ id: rPool[i], price: base, sold: false });
     }
-    // 主题局:伙伴货架(限购至 4 名)
+    // 主题局:伙伴货架(仅出售商店限定角色,初始伙伴只能在开局选择,限购至 4 名)
     const allies = [];
     if (themeT && (run.player.allies || []).length < (GS.THEMES.allyCap || 4)) {
-      const aPool = (themeT.allyDefs || []).filter(a => !(run.player.allies || []).includes(a.id));
+      const aPool = (themeT.allyDefs || []).filter(a =>
+        !a.starter && !(run.player.allies || []).includes(a.id));
       if (aPool.length) {
         const d = RNG.pick(run, aPool);
         allies.push({ id: d.id, price: d.cost, sold: false });
