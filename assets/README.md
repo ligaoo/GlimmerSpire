@@ -7,6 +7,7 @@
 
 - 怪物:`assets/enemies/<id>.png` — 建议 512×512 透明底 PNG,主体居中占 ~80%
 - 英雄:`assets/heroes/<职业id>.png` — 建议 512×512 透明底,半身立绘
+- 伙伴:`assets/ally/<伙伴id>.png` — 建议 224×224 方形 PNG,人脸居中(头像按圆形裁剪显示)
 
 ## 英雄(3 张)
 
@@ -47,3 +48,27 @@ ghost 幽魂 / weaver 灵魂编织者 / gargoyle 石像鬼 / shade 暗影 / skul
 eyetyrant 巨眼暴君
 
 文件名 = 上方英文 id,如 `assets/enemies/jawworm.png`。
+
+## 联动主题 BOSS(2 张)
+
+| 文件名 | 怪物 |
+|--------|------|
+| enemies/jj_kingofcurses.png | 两面宿傩(咒术回战·最终BOSS) |
+| enemies/ul_zetton.png | 宇宙恐龙杰顿(奥特曼·最终BOSS) |
+
+## 伙伴头像(7 张,联动主题)
+
+菜单选择器 / 战斗 HUD / 商店货架共用,文件名 = 伙伴 id:
+
+| 文件名 | 角色 |
+|--------|------|
+| ally/jj_a_itadori.png | 虎杖悠仁(咒术回战) |
+| ally/jj_a_megumi.png | 伏黑惠(咒术回战) |
+| ally/jj_a_nobara.png | 钉崎野蔷薇(咒术回战) |
+| ally/rz_a_emilia.png | 爱蜜莉雅(从零开始的异世界) |
+| ally/rz_a_rem.png | 蕾姆(从零开始的异世界) |
+| ally/rz_a_ram.png | 拉姆(从零开始的异世界) |
+| ally/xy_a_sanzang.png | 唐僧(西游记) |
+
+其余伙伴(神秘复苏 / 奥特曼 / 妖精的尾巴等)暂无合适图片,自动回退 emoji 显示;
+补图时按 `assets/ally/<伙伴id>.png` 放入即可,无需改代码。

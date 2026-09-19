@@ -691,6 +691,26 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 }
 /* 外挂怪物/英雄立绘 */
 .enemy .art { position: relative; }
+
+/* 外挂伙伴立绘(HUD 头像 / 商店货架 / 菜单选择器共用) */
+.ally-icon { position: relative; overflow: hidden; }
+.ally-icon .ally-img {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 32px; height: 32px; object-fit: cover; border-radius: 50%; pointer-events: none;
+}
+.ally-icon.img-on .art-emoji { display: none; }
+.big-ic { position: relative; }
+.big-ic .ally-img {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 44px; height: 44px; object-fit: cover; border-radius: 8px; pointer-events: none;
+}
+.big-ic.img-on > span { visibility: hidden; }
+.ap-art { position: relative; display: inline-block; width: 30px; height: 30px; }
+.ap-art .ally-img {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 30px; height: 30px; object-fit: cover; border-radius: 50%; pointer-events: none;
+}
+.ap-art.img-on .art-emoji { display: none; }
 .enemy-img {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 150px; height: 150px; object-fit: contain; pointer-events: none;

@@ -282,7 +282,8 @@
         for (const aid of (p.allies || [])) {
           const d = GS.THEMES && GS.THEMES.allyMap && GS.THEMES.allyMap[aid];
           if (!d) continue;
-          const ic = el('div', 'ally-icon', d.art);
+          const ic = el('div', 'ally-icon');
+          ic.innerHTML = `<span class="art-emoji">${d.art}</span><img class="ally-img" src="assets/ally/${aid}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt="">`;
           this.attachTip(ic, `<b>伙伴 · ${esc(d.name)}</b><br>${esc(d.desc)}<br><span style="color:#9aa3c7">每回合开始时生效(伙伴 ${(p.allies || []).length}/4)</span>`);
           allyBox.appendChild(ic);
         }
@@ -814,7 +815,7 @@
           if (!d) return;
           const price = Engine.shopPrice(run, it.price);
           const wrap = el('div', 'shop-item ally-item' + (it.sold ? ' sold' : ''));
-          wrap.innerHTML = `<div class="big-ic">${d.art}</div><div class="sub-name">${esc(d.name)}</div><div class="ally-desc">${esc(d.desc)}</div>`;
+          wrap.innerHTML = `<div class="big-ic"><span>${d.art}</span><img class="ally-img" src="assets/ally/${it.id}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt=""></div><div class="sub-name">${esc(d.name)}</div><div class="ally-desc">${esc(d.desc)}</div>`;
           this.attachTip(wrap, `<b>伙伴 · ${esc(d.name)}</b><br>${esc(d.desc)}<br><span style="color:#9aa3c7">购买后伴随整个镜域之旅,每回合开始时生效</span>`);
           wrap.appendChild(el('div', 'price', '🪙 ' + price));
           wrap.onclick = () => {
@@ -1057,7 +1058,7 @@
         } else {
           syn = `<div class="ally-syn dim">🔗 暂无卡牌联动</div>`;
         }
-        chip.innerHTML = `<div class="ap-head"><span class="ap-art">${a.art}</span><span class="ap-name">${esc(a.name)}</span>${a.starter ? '' : '<span class="ap-shop">🏪 商店限定</span>'}</div>` +
+        chip.innerHTML = `<div class="ap-head"><span class="ap-art"><span class="art-emoji">${a.art}</span><img class="ally-img" src="assets/ally/${a.id}.png" onload="this.parentElement.classList.add('img-on')" onerror="this.remove()" alt=""></span><span class="ap-name">${esc(a.name)}</span>${a.starter ? '' : '<span class="ap-shop">🏪 商店限定</span>'}</div>` +
           `<div class="ap-desc">${esc(a.desc)}</div>` + syn;
         if (a.starter) {
           chip.onclick = () => { AudioFX.play('click'); this.selAlly = a.id; this.render(); };
