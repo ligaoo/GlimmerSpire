@@ -535,6 +535,7 @@
     id: 'jj_dismantle', cls: 'jjk', type: 'attack', rarity: 'common', cost: 1, dmg: 8, ceScale: true, tech: true, target: 'enemy',
     name: '咒术·解', desc: '造成 {D} 点伤害,每点咒力使其伤害 +2(每回合第一张咒术牌免费)。',
     up: { dmg: 11, desc: '造成 {D} 点伤害,每点咒力使其伤害 +2(每回合第一张咒术牌免费)。' },
+    up2: { cost: 0, dmg: 6, name: '咒术·解·瞬', desc: '造成 {D} 点伤害,每点咒力 +2;若咒力 ≥2,消耗 2 点并再造成一次。', play(A) { A.attack(); if (A.ce() >= 2) { A.spendCe(2); A.attack(); } } },
     play(A) { A.attack(); }
   });
   def({
@@ -568,6 +569,7 @@
     id: 'jj_weave', cls: 'jjk', type: 'attack', rarity: 'common', cost: 1, dmg: 5, hits: 3, target: 'enemy', tech: true,
     name: '咒术·织', desc: '造成 3 次 {D} 点伤害。每命中一次获得 1 点咒力。',
     up: { dmg: 7, desc: '造成 3 次 {D} 点伤害。每命中一次获得 1 点咒力。' },
+    up2: { dmg: 3, hits: 5, name: '咒术·织·绫', desc: '造成 5 次 {D} 点伤害。每命中一次获得 1 点咒力。', play(A) { for (let i = 0; i < 5; i++) { A.attack(); A.gainCe(1); } } },
     play(A) {
       for (let i = 0; i < 3; i++) { A.attack(); A.gainCe(1); }
     }
@@ -952,6 +954,7 @@
     id: 'rz_tempest', cls: 'rezero', type: 'attack', rarity: 'common', cost: 1, dmg: 10, target: 'enemy',
     name: '鬼族·暴风', desc: '造成 {D} 点伤害,获得 1 层「魔女之香」。',
     up: { dmg: 14, desc: '造成 {D} 点伤害,获得 1 层「魔女之香」。' },
+    up2: { dmg: 7, name: '鬼族·暴风烈', desc: '造成 {D} 点伤害,获得 2 层「魔女之香」。', play(A, inst, t) { A.attack(t); A.applySelf('witchscent', 2); } },
     play(A, inst, t) { A.attack(t); A.applySelf('witchscent', 1); }
   });
   def({
@@ -994,6 +997,7 @@
     id: 'rz_whipcombo', cls: 'rezero', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 5, hits: 2, target: 'enemy',
     name: '百裂鞭击', desc: '造成 2 次 {D} 点伤害。',
     up: { dmg: 7, desc: '造成 2 次 {D} 点伤害。' },
+    up2: { dmg: 3, hits: 4, name: '百裂鞭·乱舞', desc: '造成 4 次 {D} 点伤害。', play(A) { A.attack(null, { times: 4 }); } },
     play(A) { A.attack(); }
   });
   def({
@@ -1330,6 +1334,7 @@
     id: 'ul_eye', cls: 'ultraman', type: 'skill', rarity: 'common', cost: 1, target: 'all',
     name: '斯派修姆之眼', desc: '对所有敌人施加 2 层易伤。',
     up: { desc: '对所有敌人施加 3 层易伤。' },
+    up2: { desc: '对所有敌人施加 2 层易伤,获得 2 点光能。', name: '斯派修姆之眼·识', play(A) { A.applyAll('vuln', 2); A.gainLight(2); } },
     play(A, inst) { A.applyAll('vuln', inst.up ? 3 : 2); }
   });
   def({
@@ -1680,12 +1685,14 @@
     id: 'xy_combo', cls: 'wukong', type: 'attack', rarity: 'common', cost: 1, dmg: 4, hits: 2, target: 'enemy',
     name: '连环棒', desc: '造成 2 次 {D} 点伤害,每命中一次获得 1 层「棍势」。',
     up: { dmg: 5, desc: '造成 2 次 {D} 点伤害,每命中一次获得 1 层「棍势」。' },
+    up2: { dmg: 3, hits: 3, name: '连环棒·三连', desc: '造成 3 次 {D} 点伤害,每命中一次获得 1 层「棍势」。', play(A, inst) { for (let i = 0; i < 3; i++) { A.attack(); A.applySelf('cudgel', 1); } } },
     play(A, inst) { for (let i = 0; i < 2; i++) { A.attack(); A.applySelf('cudgel', 1); } }
   });
   def({
     id: 'xy_guard', cls: 'wukong', type: 'skill', rarity: 'common', cost: 1, block: 8, target: 'none',
     name: '铜头铁臂', desc: '获得 {B} 点格挡,获得 1 层「棍势」。',
     up: { block: 11, desc: '获得 {B} 点格挡,获得 1 层「棍势」。' },
+    up2: { block: 5, name: '铜头铁臂·锐', desc: '获得 {B} 点格挡和 3 点荆棘,获得 1 层「棍势」。', play(A, inst) { A.gainBlock(); A.applySelf('thorns', 3); A.applySelf('cudgel', 1); } },
     play(A, inst) { A.gainBlock(); A.applySelf('cudgel', 1); }
   });
   def({
@@ -1710,6 +1717,7 @@
     id: 'xy_stretch', cls: 'wukong', type: 'attack', rarity: 'common', cost: 1, dmg: 6, target: 'all',
     name: '如意伸缩', desc: '金箍棒变大,对所有敌人造成 {D} 点伤害。',
     up: { dmg: 8, desc: '金箍棒变大,对所有敌人造成 {D} 点伤害。' },
+    up2: { dmg: 4, name: '如意伸缩·巨', desc: '金箍棒再变大,对所有敌人造成 2 次 {D} 点伤害。', play(A) { A.attackAll({ times: 2 }); } },
     play(A) { A.attackAll(); }
   });
   def({
@@ -2048,12 +2056,14 @@
     id: 'ft_hook', cls: 'fairytail', type: 'attack', rarity: 'common', cost: 1, dmg: 6, target: 'enemy',
     name: '羁绊勾拳', desc: '造成 {D} 点伤害,本场每打出过 2 张牌伤害 +1。',
     up: { dmg: 8, desc: '造成 {D} 点伤害,本场每打出过 2 张牌伤害 +1。' },
+    up2: { dmg: 4, name: '羁绊勾拳·热', desc: '造成 {D} 点伤害,本场每打出过 1 张牌伤害 +1。', play(A, inst, t) { A.attackBonus(A.cardsPlayed()); A.attack(t); } },
     play(A, inst, t) { A.attackBonus(Math.floor(A.cardsPlayed() / 2)); A.attack(t); }
   });
   def({
     id: 'ft_flame', cls: 'fairytail', type: 'attack', rarity: 'common', cost: 1, dmg: 7, target: 'enemy',
     name: '火龙炎', desc: '造成 {D} 点伤害,施加 2 层「灼伤」。',
     up: { dmg: 9, desc: '造成 {D} 点伤害,施加 3 层「灼伤」。' },
+    up2: { dmg: 4, target: 'all', name: '火龙炎·燎', desc: '对所有敌人造成 {D} 点伤害,施加 2 层「灼伤」。', play(A, inst) { A.attackAll(); A.applyAll('scorch', 2); } },
     play(A, inst, t) { A.attack(t); A.applyTo(t, 'scorch', inst.up ? 3 : 2); }
   });
   def({
@@ -2081,6 +2091,7 @@
     id: 'ft_iron', cls: 'fairytail', type: 'attack', rarity: 'uncommon', cost: 1, dmg: 10, block: 3, target: 'enemy',
     name: '铁龙之杖', desc: '造成 {D} 点伤害,获得 3 点格挡。',
     up: { dmg: 13, block: 5, desc: '造成 {D} 点伤害,获得 {B} 点格挡。' },
+    up2: { dmg: 7, block: 8, name: '铁龙之杖·壁', desc: '造成 {D} 点伤害,获得 {B} 点格挡和 3 点荆棘。', play(A, inst, t) { A.attack(t); A.gainBlock(); A.applySelf('thorns', 3); } },
     play(A, inst, t) { A.attack(t); A.gainBlock(); }
   });
   def({
@@ -2301,6 +2312,7 @@
     id: 'rz_snowstorm', cls: 'rezero', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 8, target: 'all',
     name: '暴风雪', desc: '对所有敌人造成 {D} 点伤害,并施加 1 层虚弱。',
     up: { dmg: 11, desc: '对所有敌人造成 {D} 点伤害,并施加 2 层虚弱。' },
+    up2: { dmg: 5, name: '暴风雪·凛', desc: '对所有敌人造成 {D} 点伤害,施加 1 层虚弱与 1 层易伤。', play(A) { A.attackAll(); A.applyAll('weak', 1); A.applyAll('vuln', 1); } },
     play(A, inst) { A.attackAll(); A.applyAll('weak', inst.up ? 2 : 1); }
   });
   def({
@@ -2319,6 +2331,7 @@
     id: 'ul_wideshot', cls: 'ultraman', type: 'attack', rarity: 'common', cost: 1, dmg: 5, target: 'all',
     name: '广域光线', desc: '对所有敌人造成 {D} 点伤害,获得 1 点光能。',
     up: { dmg: 7, desc: '对所有敌人造成 {D} 点伤害,获得 1 点光能。' },
+    up2: { dmg: 3, name: '广域光线·散射', desc: '对所有敌人造成 {D} 点伤害,获得 2 点光能。', play(A) { A.attackAll(); A.gainLight(2); } },
     play(A) { A.attackAll(); A.gainLight(1); }
   });
   def({
@@ -2567,6 +2580,7 @@
     id: 'jj_barrier', cls: 'jjk', type: 'skill', rarity: 'common', cost: 1, block: 8, target: 'none',
     name: '咒力屏障', desc: '获得 {B} 点格挡,咒力 +1。',
     up: { block: 11, desc: '获得 {B} 点格挡,咒力 +1。' },
+    up2: { cost: 0, block: 5, name: '咒力屏障·涌', desc: '获得 {B} 点格挡,咒力 +2。', play(A) { A.gainBlock(); A.gainCe(2); } },
     play(A) { A.gainBlock(); A.gainCe(1); }
   });
   def({
@@ -2965,6 +2979,7 @@
     id: 'ul_meteor', cls: 'ultraman', type: 'attack', rarity: 'uncommon', cost: 2, dmg: 8, target: 'all',
     name: '流星弹', desc: '对所有敌人造成 {D} 点伤害。',
     up: { dmg: 11, desc: '对所有敌人造成 {D} 点伤害。' },
+    up2: { dmg: 4, name: '流星弹·雨', desc: '对所有敌人造成 2 次 {D} 点伤害。', play(A) { A.attackAll({ times: 2 }); } },
     play(A) { A.attackAll(); }
   });
 

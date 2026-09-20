@@ -852,3 +852,5 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
   .fusion-cards .card { width: 112px; height: 160px; }
   .fusion-cards .card .cdesc { font-size: 10px; }
 }
+.fusion-group { margin-top: 10px; font-size: 13px; color: #9aa3c7; letter-spacing: 2px;
+  border-bottom: 1px dashed #3a3550; padding-bottom: 3px; }

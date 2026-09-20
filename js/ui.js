@@ -1405,33 +1405,45 @@
       modal.appendChild(el('div', 'tip-line', '将两张材料卡融合为更强的全新卡牌。熔铸会消耗材料卡,并占用本次篝火机会。'));
       const F = GS.FUSIONS;
       const list = el('div', 'fusion-list');
+      // 按主题/职业分组,本局相关的组置顶
+      const curTheme = run.theme && GS.THEMES ? GS.THEMES.get(run.theme) : null;
+      const curTag = curTheme ? curTheme.name : ({ warrior: '战士', ranger: '游侠', warlock: '术士' })[run.cls];
+      const groups = [];
       F.list.forEach(r => {
-        const ok = !run.restDone && F.canFuse(run, r);
-        const row = el('div', 'fusion-recipe' + (ok ? '' : ' locked'));
-        const cards = el('div', 'fusion-cards');
-        cards.appendChild(this.cardEl({ id: r.materials[0], up: 0 }));
-        cards.appendChild(el('div', 'fusion-plus', '+'));
-        cards.appendChild(this.cardEl({ id: r.materials[1], up: 0 }));
-        cards.appendChild(el('div', 'fusion-arrow', '⚒️'));
-        cards.appendChild(this.cardEl({ id: r.result, up: 0 }));
-        row.appendChild(cards);
-        const info = el('div', 'fusion-info');
-        info.appendChild(el('div', 'fusion-name',
-          `<span class="fusion-tag">${esc(r.tag)}</span>${esc(r.name)}<span class="fusion-note">${esc(r.note)}</span>`));
-        if (ok) {
-          const btn = el('button', 'primary fusion-btn', '熔铸');
-          btn.onclick = (e) => {
-            e.stopPropagation();
-            if (Engine.restFuse(run, r.id)) AudioFX.play('upgrade');
-            this.closeModal();
-            this.update();
-          };
-          info.appendChild(btn);
-        } else {
-          info.appendChild(el('div', 'fusion-lock', run.restDone ? '本次篝火已行动' : '缺少材料卡'));
-        }
-        row.appendChild(info);
-        list.appendChild(row);
+        let g = groups.find(x => x.tag === r.tag);
+        if (!g) { g = { tag: r.tag, recipes: [] }; groups.push(g); }
+        g.recipes.push(r);
+      });
+      groups.sort((a, b) => (b.tag === curTag ? 1 : 0) - (a.tag === curTag ? 1 : 0));
+      groups.forEach(g => {
+        list.appendChild(el('div', 'fusion-group', g.tag === curTag ? '◈ ' + esc(g.tag) + ' · 本局' : esc(g.tag)));
+        g.recipes.forEach(r => {
+          const ok = !run.restDone && F.canFuse(run, r);
+          const row = el('div', 'fusion-recipe' + (ok ? '' : ' locked'));
+          const cards = el('div', 'fusion-cards');
+          cards.appendChild(this.cardEl({ id: r.materials[0], up: 0 }));
+          cards.appendChild(el('div', 'fusion-plus', '+'));
+          cards.appendChild(this.cardEl({ id: r.materials[1], up: 0 }));
+          cards.appendChild(el('div', 'fusion-arrow', '⚒️'));
+          cards.appendChild(this.cardEl({ id: r.result, up: 0 }));
+          row.appendChild(cards);
+          const info = el('div', 'fusion-info');
+          info.appendChild(el('div', 'fusion-name', `<span class="fusion-note">${esc(r.note)}</span>`));
+          if (ok) {
+            const btn = el('button', 'primary fusion-btn', '熔铸');
+            btn.onclick = (e) => {
+              e.stopPropagation();
+              if (Engine.restFuse(run, r.id)) AudioFX.play('upgrade');
+              this.closeModal();
+              this.update();
+            };
+            info.appendChild(btn);
+          } else {
+            info.appendChild(el('div', 'fusion-lock', run.restDone ? '本次篝火已行动' : '缺少材料卡'));
+          }
+          row.appendChild(info);
+          list.appendChild(row);
+        });
       });
       modal.appendChild(list);
       const btns = el('div', 'modal-btns');

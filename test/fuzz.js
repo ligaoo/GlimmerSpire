@@ -1193,6 +1193,43 @@ function mechanicTests() {
     assert((c.player.statuses.soulfire || 0) === 2, '诡异长枪未获得魂火');
     assert((c.enemies[0].statuses.vuln || 0) === 2, '诡异长枪未施加易伤');
   }
+  // v7.5:全部熔铸配方参数化回归 —— 注入材料 → 熔铸 → 战斗打出,全流程不异常
+  {
+    const recipes = globalThis.GS.FUSIONS.list;
+    assert(recipes.length === 21, `配方数量异常: ${recipes.length}`);
+    recipes.forEach((r, ri) => {
+      const run = Engine.newRun(r.theme, 900 + ri);
+      run.screen = 'rest'; run.restDone = false;
+      run.player.deck.push({ id: r.materials[0], up: 0 }, { id: r.materials[1], up: 0 });
+      assert(Engine.restFuse(run, r.id) === true, `[${r.id}] 熔铸失败`);
+      assert(run.player.deck.some(x => x.id === r.result), `[${r.id}] 融合卡未入组`);
+      // 压缩卡组保证融合卡上手,实战打出
+      run.player.deck = run.player.deck.filter(x => x.id === r.result);
+      run.player.deck.push({ id: 'defend', up: 0 });
+      try {
+        forceCombat(run, ['jawworm'], 'normal');
+        const c = run.combat;
+        const fi = c.hand.findIndex(h => h.id === r.result);
+        assert(fi >= 0, `[${r.id}] 融合卡不在手牌`);
+        if (fi >= 0 && Engine.canPlay(run, fi)) Engine.playCard(run, fi, 0);
+        checkInvariants(run, `熔铸[${r.id}]`);
+        assert(run.screen !== 'gameover', `[${r.id}] 打出融合卡后异常死亡`);
+      } catch (e) {
+        fail(`[${r.id}] 融合卡战斗异常: ${e.stack}`);
+      }
+    });
+  }
+  // v7.5:五主题新增 up2 B 分支视图抽查(合并 name/cost/hits/target)
+  {
+    assert(CARDS.view({ id: 'jj_dismantle', up: 1, path: 2 }).name === '咒术·解·瞬', 'up2 视图合并失败(咒术·解)');
+    assert(CARDS.view({ id: 'jj_barrier', up: 1, path: 2 }).cost === 0, 'up2 视图合并失败(咒力屏障)');
+    assert(CARDS.view({ id: 'rz_whipcombo', up: 1, path: 2 }).hits === 4, 'up2 视图合并失败(百裂鞭击)');
+    assert(CARDS.view({ id: 'rz_snowstorm', up: 1, path: 2 }).name === '暴风雪·凛', 'up2 视图合并失败(暴风雪)');
+    assert(CARDS.view({ id: 'ul_meteor', up: 1, path: 2 }).name === '流星弹·雨', 'up2 视图合并失败(流星弹)');
+    assert(CARDS.view({ id: 'xy_stretch', up: 1, path: 2 }).name === '如意伸缩·巨', 'up2 视图合并失败(如意伸缩)');
+    assert(CARDS.view({ id: 'ft_flame', up: 1, path: 2 }).target === 'all', 'up2 视图合并失败(火龙炎)');
+    assert(CARDS.view({ id: 'ft_hook', up: 1, path: 2 }).name === '羁绊勾拳·热', 'up2 视图合并失败(羁绊勾拳)');
+  }
 }
 
 /* ================= 聪明 Bot:验证可通关性与难度 ================= */
