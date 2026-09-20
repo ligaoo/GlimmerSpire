@@ -36,8 +36,12 @@ function assert(cond, msg) {
   if (!cond) fail(msg);
 }
 
-function rnd(n) { return Math.floor(Math.random() * n); }
+// Bot 的随机走「当前 run」的 RNG 流,保证同一颗种子完全可复现
+// (此前用 Math.random,同一颗种子跑两次结果不同,导致 n=30 时单主题活过率噪声可达 ±15%)
+let CURR = null;
+function rnd(n) { return CURR ? RNG.int(CURR, 0, n - 1) : Math.floor(Math.random() * n); }
 function pick(arr) { return arr[rnd(arr.length)]; }
+function broll() { return CURR ? RNG.float(CURR) : Math.random(); }
 
 /* ================= 不变量检查 ================= */
 function checkInvariants(run, where) {
@@ -96,7 +100,7 @@ function actOnce(run) {
         }
         return;
       }
-      const roll = Math.random();
+      const roll = broll();
       if (roll < 0.75) {
         const playable = [];
         for (let i = 0; i < c.hand.length; i++) if (Engine.canPlay(run, i)) playable.push(i);
@@ -111,7 +115,7 @@ function actOnce(run) {
       }
       if (roll < 0.85) {
         for (let s = 0; s < run.player.potionSlots; s++) {
-          if (Engine.potionUsable(run, s) && Math.random() < 0.5) {
+          if (Engine.potionUsable(run, s) && broll() < 0.5) {
             Engine.usePotion(run, s, rnd(Math.max(1, c.enemies.filter(e => !e.dead).length)));
             return;
           }
@@ -126,7 +130,7 @@ function actOnce(run) {
       (run.rewards || []).forEach((r, i) => {
         if (r.taken) return;
         if (r.type === 'card') {
-          if (Math.random() < 0.7) Engine.takeCardReward(run, i, pick(r.options));
+          if (broll() < 0.7) Engine.takeCardReward(run, i, pick(r.options));
           else Engine.skipCardReward(run, i);
         } else {
           Engine.claimReward(run, i);
@@ -141,7 +145,7 @@ function actOnce(run) {
         Engine.shopRemoveCard(run, rnd(run.player.deck.length));
         return;
       }
-      if (Math.random() < 0.5) {
+      if (broll() < 0.5) {
         const kinds = ['card', 'potion', 'relic', 'remove'];
         const k = pick(kinds);
         if (k === 'card') Engine.buyShopItem(run, 'card', rnd(s.cards.length));
@@ -156,7 +160,7 @@ function actOnce(run) {
     case 'rest': {
       if (run.pending) return resolvePendingRandom(run);
       if (run.restDone) { Engine.leaveRest(run); return; }
-      const roll = Math.random();
+      const roll = broll();
       if (roll < 0.5) Engine.restHeal(run);
       else if (roll < 0.8) Engine.restSmith(run);
       else Engine.restPurify(run);
@@ -175,7 +179,7 @@ function actOnce(run) {
       return;
     }
     case 'victory': {
-      if (Math.random() < 0.5 && !run.endless) Engine.continueEndless(run);
+      if (broll() < 0.5 && !run.endless) Engine.continueEndless(run);
       else run.screen = 'gameover'; // 结束模拟
       return;
     }
@@ -219,6 +223,7 @@ function cardValue(inst) {
 /* ================= 完整对局模拟 ================= */
 function simulateRun(cls, seed) {
   const run = Engine.newRun(cls, seed);
+  CURR = run;
   let steps = 0;
   while (run.screen !== 'gameover' && steps < 30000) {
     steps++;
@@ -804,7 +809,9 @@ function mechanicTests() {
     run.player.hp = 3;
     Engine.endTurn(run);
     if (run.screen === 'combat') {
-      assert(run.player.hp === c.rbdHp, `死亡回归未倒回: hp=${run.player.hp}, 存档点=${c.rbdHp}`);
+      // 倒回到"开战时血量 × rbdRestore(0.5)"——不再是回满,否则每场战斗等于免费免死一次
+      const expect = Math.max(1, Math.floor(c.rbdHp * 0.5));
+      assert(run.player.hp === expect, `死亡回归未按比例倒回: hp=${run.player.hp}, 期望=${expect}(存档点=${c.rbdHp})`);
       assert(c.rbdUsed === 1, '死亡回归次数未消耗');
       // 第二次致命伤应真正死亡(基础只有 1 次)
       if (run.screen === 'combat') {
@@ -1351,6 +1358,7 @@ function simulateSmart(cls, seed) {
   return driveSmartRun(Engine.newRun(cls, seed), 'smart ' + cls + '#' + seed);
 }
 function driveSmartRun(run, tag) {
+  CURR = run;
   let steps = 0;
   while (run.screen !== 'gameover' && run.screen !== 'victory' && steps < 30000) {
     steps++;
@@ -1562,6 +1570,7 @@ if (!themeOnly) {
     for (let k = 0; k < 6; k++) run.player.deck.push({ id: 'impervious', up: 1 });
     Engine.acquireRelic(run, 'manapearl');
     let steps = 0, endlessReached = false;
+    CURR = run;
     while (run.screen !== 'gameover' && steps < 30000) {
       steps++;
       if (run.screen === 'combat') smartCombatAct(run);
