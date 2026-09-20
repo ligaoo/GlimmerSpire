@@ -67,7 +67,7 @@
     text: '一本散发着腥甜气息的古书。翻开的书页上,力量在流动。',
     choices: [
       { label: '阅读', hint: '获得 1 张稀有牌和 1 张诅咒',
-        fx(A) { A.gainRareCard(); A.curse('pain'); return '禁忌的知识涌入脑海,代价随之而来。'; } },
+        fx(A) { const nm = A.gainRareCard(); A.curse('pain'); const cn = A.cardName('pain'); return nm ? `禁忌的知识涌入脑海——「${nm}」加入卡组,但「${cn}」也随之而来。` : `书页拒绝了你的触碰,只有「${cn}」缠上了你。`; } },
       { label: '烧掉它', hint: '回复 12 点生命',
         fx(A) { A.heal(12); return '火焰中的低语渐渐平息,你感到一丝暖意。'; } }
     ]
@@ -151,7 +151,7 @@
     text: '空气撕开一道裂口,里面流出的不是黑暗,而是无数闪烁的卡牌。',
     choices: [
       { label: '伸入裂隙', hint: '随机升级 3 张牌,最大生命 -4',
-        fx(A) { A.addMaxHp(-4); const n = A.upgradeRandom(3); return n + ' 张牌在时空乱流中得到了强化。'; } },
+        fx(A) { A.addMaxHp(-4); const names = A.upgradeRandomNames(3); return names.length ? `时空乱流强化了:${names.map(n => '「' + n + '」').join('')}` : '裂隙合拢了,什么也没留下。'; } },
       { label: '透过裂隙观察', hint: '获得 25 金币(裂隙中掉落)',
         fx(A) { A.gainGold(25); return '几个硬币从裂隙中掉了出来。'; } }
     ]
@@ -177,7 +177,7 @@
         fx(A) { A.removeCard(); A.gainGold(60); return '你忘记了什么,口袋却沉了起来。'; } },
       { label: '购买记忆', hint: '花费 55 金币,获得 1 张稀有牌',
         can(g) { return g.gold() >= 55; },
-        fx(A) { A.loseGold(55); A.gainRareCard(); return '不属于你的记忆,成了你手中的力量。'; } },
+        fx(A) { A.loseGold(55); const nm = A.gainRareCard(); return nm ? `不属于你的记忆,成了你手中的力量——「${nm}」加入卡组。` : '交易落空了,金币却被收走。'; } },
       { label: '离开', fx() { return '和幽灵讨价还价?还是算了。'; } }
     ]
   });

@@ -2362,6 +2362,7 @@
         run.removals += 1;
         s.removeUsed = true;
         s.awaitingRemove = true; // UI 弹出选牌
+        run.pending = { type: 'remove', n: 1 };
       }
       if (GS.Codex) {
         if (kind === 'card' && s.cards && s.cards[idx]) GS.Codex.record('cards', s.cards[idx].id);
@@ -2427,6 +2428,20 @@
       saveRun(run);
     },
     removePrice(run) { return 75 + 25 * (run.removals || 0); },
+    /* 商店删牌:选牌弹窗被关闭时回滚(退款+还原次数与状态),避免白花钱 */
+    cancelShopRemove(run) {
+      const s = run.shop;
+      if (!s || !s.awaitingRemove) return 0;
+      if (!run.pending || run.pending.type !== 'remove') return 0;
+      run.removals = Math.max(0, (run.removals || 0) - 1);
+      const refund = this.removePrice(run);
+      run.player.gold += refund;
+      s.removeUsed = false;
+      s.awaitingRemove = false;
+      run.pending = null;
+      saveRun(run);
+      return refund;
+    },
     shopRemoveCard(run, deckIdx) {
       const s = run.shop;
       if (!s || !s.awaitingRemove) return;
@@ -2434,6 +2449,7 @@
       if (!inst) return;
       run.player.deck.splice(deckIdx, 1);
       s.awaitingRemove = false;
+      run.pending = null;
       saveRun(run);
     },
     leaveShop(run) {
@@ -2558,27 +2574,26 @@
         curse(id) { run.player.deck.push({ id, up: 0 }); },
         gainRareCard() {
           const pool = CARDS.pool(run.player.cls, 'rare');
-          if (!pool.length) return;
-          run.player.deck.push({ id: RNG.pick(run, pool), up: 0 });
+          if (!pool.length) return null;
+          const id = RNG.pick(run, pool);
+          run.player.deck.push({ id, up: 0 });
+          return CARDS.get(id).name;
         },
+        cardName(id) { const d = CARDS.get(id); return d ? d.name : id; },
         chooseColorless() {
           run.pending = { type: 'colorless', n: 1 };
         },
         removeCard() { run.pending = { type: 'remove', n: 1 }; },
         upgradeChoose() { run.pending = { type: 'smith', n: 1 }; },
-        upgradeRandom(n) {
-          let cnt = 0;
-          const cand = run.player.deck.filter(x => !x.up && CARDS.upgradeable(x.id));
+        upgradeRandom(n) { return this._upgrades(x => !x.up && CARDS.upgradeable(x.id), n).length; },
+        upgradeRandomNames(n) { return this._upgrades(x => !x.up && CARDS.upgradeable(x.id), n).map(x => CARDS.get(x.id).name); },
+        upgradeRandomWhere(pred, n) { return this._upgrades(x => !x.up && CARDS.upgradeable(x.id) && pred(CARDS.get(x.id)), n).length; },
+        _upgrades(filter, n) {
+          const cand = run.player.deck.filter(filter);
           RNG.shuffle(run, cand);
-          for (const x of cand) { if (cnt >= n) break; x.up = 1; cnt++; }
-          return cnt;
-        },
-        upgradeRandomWhere(pred, n) {
-          let cnt = 0;
-          const cand = run.player.deck.filter(x => !x.up && CARDS.upgradeable(x.id) && pred(CARDS.get(x.id)));
-          RNG.shuffle(run, cand);
-          for (const x of cand) { if (cnt >= n) break; x.up = 1; cnt++; }
-          return cnt;
+          const got = cand.slice(0, n);
+          for (const x of got) x.up = 1;
+          return got;
         },
         countCards(pred) { return run.player.deck.filter(x => pred(CARDS.get(x.id))).length; },
         removeWhere(pred) { run.player.deck = run.player.deck.filter(x => !pred(CARDS.get(x.id))); },
@@ -2638,6 +2653,7 @@
         for (const i of [...new Set(indices)].sort((a, b) => b - a)) {
           run.player.deck.splice(i, 1);
         }
+        if (run.shop && run.shop.awaitingRemove) run.shop.awaitingRemove = false;
       } else if (p.type === 'transform') {
         const inst = run.player.deck[indices[0]];
         if (inst) {

@@ -262,8 +262,24 @@
       $('#hud-floor').textContent = `${actName} · 第${run.floorTotal}层`;
       const title = $('#hud-title');
       if (theme) {
-        title.innerHTML = `<span class="theme-badge">${theme.art} ${esc(theme.name)}</span>` +
-          (run.player.curse ? `<span class="curse-badge" title="污染:每层使你的伤害提高,但敌人血量更高、攻击更凶">🩸 污染 ${run.player.curse}</span>` : '');
+        title.innerHTML = `<span class="theme-badge">${theme.art} ${esc(theme.name)}</span>`;
+        if (run.player.curse) {
+          const cur = run.player.curse;
+          const dmgPer = theme.curseDmg || 0;
+          const hpPer = Math.round((theme.curseHp || 0) * 100);
+          const atkPer = Math.round((theme.curseAtk || 0) * 100);
+          const dmgB = Math.min(dmgPer * 6, cur * dmgPer);
+          const hpB = Math.min(30, Math.round((theme.curseHp || 0) * cur * 100));
+          const atkB = Math.min(24, Math.round((theme.curseAtk || 0) * cur * 100));
+          const badge = el('span', 'curse-badge', `🩸 污染 ${cur}`);
+          this.attachTip(badge,
+            `<b>🩸 污染 ${cur} 层</b><br>` +
+            `你的卡牌伤害 <b style="color:#ff9a76">+${dmgB}</b>(每层 +${dmgPer},至多 +${dmgPer * 6})<br>` +
+            `敌人生命 <b style="color:#ff8fb0">+${hpB}%</b>(每层 +${hpPer}%,至多 +30%)<br>` +
+            `敌人攻击 <b style="color:#ff8fb0">+${atkB}%</b>(每层 +${atkPer}%,至多 +24%)<br>` +
+            `<span style="color:#9aa3c7">每深入一层污染 +1;「🛡️ 镇魂结界」与进入新镜域可净化</span>`);
+          title.appendChild(badge);
+        }
       } else {
         title.textContent = '微光尖塔';
       }
@@ -415,12 +431,23 @@
       if (view.unplayable) extra.push('无法打出');
       if (view.tech) extra.push('咒术:每回合第一张免费');
       const rarityMap = { basic: '初始', common: '普通', uncommon: '罕见', rare: '稀有', special: '特殊' };
-      let html = `<b>${esc(view.name)}</b> <span style="color:#9aa3c7">(${rarityMap[view.rarity] || ''})</span><br>${esc(view.desc || '')}`;
       const run = this.run;
-      if (run && run.screen === 'combat' && run.combat) {
+      const inCombat = !!(run && run.screen === 'combat' && run.combat);
+      // 与卡面同样替换模板变量,战斗中用实时数值
+      let dN = view.dmg, bN = view.block;
+      if (inCombat) {
+        if (view.dmg) dN = Engine.calcCardDamage(run, inst, null);
+        if (view.block) bN = Engine.calcCardBlock(run, inst);
+      }
+      let desc = view.desc || '';
+      if (desc.indexOf('{D}') >= 0 || desc.indexOf('{B}') >= 0) {
+        desc = desc.replace('{D}', dN !== undefined ? dN : '?').replace('{B}', bN !== undefined ? bN : '?');
+      }
+      let html = `<b>${esc(view.name)}</b> <span style="color:#9aa3c7">(${rarityMap[view.rarity] || ''})</span><br>${esc(desc)}`;
+      if (inCombat) {
         const live = [];
-        if (view.dmg) live.push(`当前伤害 <b style="color:#ff9a76">${Engine.calcCardDamage(run, inst, null)}</b>`);
-        if (view.block) live.push(`当前格挡 <b style="color:#6ee7ff">${Engine.calcCardBlock(run, inst)}</b>`);
+        if (view.dmg) live.push(`当前伤害 <b style="color:#ff9a76">${dN}</b>`);
+        if (view.block) live.push(`当前格挡 <b style="color:#6ee7ff">${bN}</b>`);
         if (view.tech) live.push(`本回合咒力 <b style="color:#c9a6ff">${run.combat.ce || 0}</b>`);
         if (live.length) html += `<br><span style="color:#9aa3c7">${live.join(' · ')}</span>`;
       }
@@ -566,7 +593,8 @@
       c.enemies.forEach((e, idx) => {
         const living = c.enemies.filter(x => !x.dead);
         const li = living.indexOf(e);
-        const box = el('div', 'enemy' + (e.dead ? ' dead' : ''));
+        // settled:死亡动画已播完的死敌,脱离布局不再挤偏存活敌人
+        const box = el('div', 'enemy' + (e.dead ? ' dead settled' : ''));
         box.dataset.uid = e.uid;
         // 意图
         let intentHtml = '';
@@ -1239,6 +1267,12 @@
       node.addEventListener('click', e => e.stopPropagation());
     },
     closeModal() {
+      // 商店删牌弹窗被关闭:回滚退款,不让 75 金币白花
+      const run = this.run;
+      if (run && run.screen === 'shop' && run.shop && run.shop.awaitingRemove && run.pending) {
+        const refund = Engine.cancelShopRemove(run);
+        if (refund) { this.toast('已取消移除,退还 🪙 ' + refund); this.render(); }
+      }
       $('#modal-layer').classList.add('hidden');
       $('#modal-layer').innerHTML = '';
     },
@@ -1416,7 +1450,17 @@
       });
       groups.sort((a, b) => (b.tag === curTag ? 1 : 0) - (a.tag === curTag ? 1 : 0));
       groups.forEach(g => {
-        list.appendChild(el('div', 'fusion-group', g.tag === curTag ? '◈ ' + esc(g.tag) + ' · 本局' : esc(g.tag)));
+        // 本局组(职业/主题匹配)直接展开;其余组默认折叠——经典局里主题配方的材料卡根本拿不到
+        let host;
+        if (g.tag === curTag) {
+          list.appendChild(el('div', 'fusion-group', '◈ ' + esc(g.tag) + ' · 本局'));
+          host = list;
+        } else {
+          const det = el('details', 'fusion-details');
+          det.appendChild(el('summary', '', `${esc(g.tag)} · ${g.recipes.length} 个配方(本局拿不到材料,点击展开)`));
+          list.appendChild(det);
+          host = det;
+        }
         g.recipes.forEach(r => {
           const ok = !run.restDone && F.canFuse(run, r);
           const row = el('div', 'fusion-recipe' + (ok ? '' : ' locked'));
@@ -1442,7 +1486,7 @@
             info.appendChild(el('div', 'fusion-lock', run.restDone ? '本次篝火已行动' : '缺少材料卡'));
           }
           row.appendChild(info);
-          list.appendChild(row);
+          host.appendChild(row);
         });
       });
       modal.appendChild(list);
@@ -1886,7 +1930,11 @@
           case 'death': {
             AudioFX.play('death');
             const node = document.querySelector(`.enemy[data-uid="${ev.uid}"]`);
-            if (node) node.classList.add('dead');
+            if (node) {
+              node.classList.add('dead');
+              // 溶解动画(0.6s)播完后脱离布局,避免残留占位
+              setTimeout(() => node.classList.add('settled'), 700 / speedMult);
+            }
             await sleep(speed + 120);
             break;
           }
