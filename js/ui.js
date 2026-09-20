@@ -938,6 +938,9 @@
         mk('⛩️', '净化', '移除卡组中的 1 张牌',
           () => { Engine.restPurify(run); this.update(); }, run.restDone);
       }
+      const fus = Engine.availableFusions(run);
+      mk('⚗️', '熔铸', fus.length ? `将两张材料卡融合为更强的卡牌(${fus.length} 个配方可熔铸)` : '融合两张材料卡为更强的全新卡牌',
+        () => { this.fusionModal(); }, run.restDone);
       panel.appendChild(opts);
       const leave = el('button', run.restDone ? 'primary' : 'ghost', run.restDone ? '继续前进' : '直接离开(不休息)');
       leave.onclick = () => { AudioFX.play('click'); Engine.leaveRest(run); this.update(); };
@@ -1394,6 +1397,51 @@
       this.openModal(modal);
     },
 
+    /* v7:卡牌熔铸配方选择 */
+    fusionModal() {
+      const run = this.run;
+      const modal = el('div', 'modal fusion-modal');
+      modal.appendChild(el('h3', '', '⚗️ 卡牌熔铸'));
+      modal.appendChild(el('div', 'tip-line', '将两张材料卡融合为更强的全新卡牌。熔铸会消耗材料卡,并占用本次篝火机会。'));
+      const F = GS.FUSIONS;
+      const list = el('div', 'fusion-list');
+      F.list.forEach(r => {
+        const ok = !run.restDone && F.canFuse(run, r);
+        const row = el('div', 'fusion-recipe' + (ok ? '' : ' locked'));
+        const cards = el('div', 'fusion-cards');
+        cards.appendChild(this.cardEl({ id: r.materials[0], up: 0 }));
+        cards.appendChild(el('div', 'fusion-plus', '+'));
+        cards.appendChild(this.cardEl({ id: r.materials[1], up: 0 }));
+        cards.appendChild(el('div', 'fusion-arrow', '⚒️'));
+        cards.appendChild(this.cardEl({ id: r.result, up: 0 }));
+        row.appendChild(cards);
+        const info = el('div', 'fusion-info');
+        info.appendChild(el('div', 'fusion-name',
+          `<span class="fusion-tag">${esc(r.tag)}</span>${esc(r.name)}<span class="fusion-note">${esc(r.note)}</span>`));
+        if (ok) {
+          const btn = el('button', 'primary fusion-btn', '熔铸');
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            if (Engine.restFuse(run, r.id)) AudioFX.play('upgrade');
+            this.closeModal();
+            this.update();
+          };
+          info.appendChild(btn);
+        } else {
+          info.appendChild(el('div', 'fusion-lock', run.restDone ? '本次篝火已行动' : '缺少材料卡'));
+        }
+        row.appendChild(info);
+        list.appendChild(row);
+      });
+      modal.appendChild(list);
+      const btns = el('div', 'modal-btns');
+      const close = el('button', '', '再想想');
+      close.onclick = () => this.closeModal();
+      btns.appendChild(close);
+      modal.appendChild(btns);
+      this.openModal(modal);
+    },
+
     /* v5:每日挑战 */
     dailyModal() {
       const info = Engine.dailyInfo();
@@ -1560,11 +1608,12 @@
         敌人头顶会显示<span class="kw">意图</span>:⚔️ 即将攻击(附伤害),🛡️ 防御,🔺 强化自身,🔻 削弱你,☠️ 致命重击。
         <h4>卡组构筑</h4>
         战斗胜利后可选择新卡牌。卡组越精简越强——商店的<span class="kw">移除服务</span>、篝火的<span class="kw">净化</span>和部分事件都能删牌。
+        篝火还可<span class="kw">熔铸</span>:凑齐特定两张材料卡(如 柴刀+棺材钉),可将它们融合为一张更强的全新卡牌。
         <span class="kw">消耗</span>:打出后本场战斗内不再返回牌堆。<span class="kw">虚无</span>:回合结束时若在手牌中则消耗。<span class="kw">固有</span>:必定在开局手牌中。
         <h4>常见状态</h4>
         <span class="kw">易伤</span>受到攻击伤害×1.5 ·<span class="kw">虚弱</span>造成攻击伤害×0.75 ·<span class="kw">中毒</span>回合开始掉血且无视格挡 ·<span class="kw">力量</span>攻击伤害加成 ·<span class="kw">格挡</span>抵御攻击直到回合结束
         <h4>节点</h4>
-        ⚔️战斗 💀精英(高风险高回报) 🔥篝火(休整/锻造) 🏪商店 ❓事件 🎁宝箱 👑BOSS
+        ⚔️战斗 💀精英(高风险高回报) 🔥篝火(休整/锻造/熔铸) 🏪商店 ❓事件 🎁宝箱 👑BOSS
         <h4>快捷键</h4>
         <span class="kbd">1-9</span> 打出对应手牌 · <span class="kbd">E</span> 结束回合 · <span class="kbd">Esc</span> 取消/关闭
         <h4>存档与技能包</h4>

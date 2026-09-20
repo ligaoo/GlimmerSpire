@@ -71,7 +71,7 @@
   // 卡牌视图(含临时升级标记)
   function cardView(run, inst) {
     if (!inst) return CARDS.get('strike');
-    return CARDS.view({ id: inst.id, up: (inst.up || inst._tempUp) ? 1 : 0 });
+    return CARDS.view({ id: inst.id, up: (inst.up || inst._tempUp) ? 1 : 0, path: inst.path });
   }
   function relicVal(run, key) {
     let v = 0;
@@ -514,11 +514,12 @@
         let total = 0;
         if (!opts.echo) pushEv(run, { t: 'fx', fx: 'aoe' });
         const first = !c.firstAttackUsed;
+        const bonus = c.pendingAttackBonus; c.pendingAttackBonus = 0;
         const base = (view.dmg || 0) + (c.permBoosts[inst.uid] || 0);
         for (let i = 0; i < times; i++) {
           for (const e of living()) {
             const amt = calcPlayerAttack(run, base, e, {
-              firstAttack: first && i === 0 && e === living()[0],
+              bonus, firstAttack: first && i === 0 && e === living()[0],
               ce: !!view.ceScale, curseDmg: curseDamageBonus(run)
             });
             total += hitEnemy(run, e, amt);
@@ -537,6 +538,7 @@
         let total = 0;
         if (!opts.echo) pushEv(run, { t: 'fx', fx: 'multi' });
         const first = !c.firstAttackUsed;
+        const bonus = c.pendingAttackBonus; c.pendingAttackBonus = 0;
         const base = o.dmg !== undefined ? o.dmg : ((view.dmg || 0) + (c.permBoosts[inst.uid] || 0));
         c.firstAttackUsed = true;
         for (let i = 0; i < times; i++) {
@@ -544,7 +546,7 @@
           if (!alive.length) break;
           const target = RNG.pick(run, alive);
           const amt = calcPlayerAttack(run, base, target, {
-            firstAttack: first && i === 0, curseDmg: curseDamageBonus(run)
+            bonus, firstAttack: first && i === 0, curseDmg: curseDamageBonus(run)
           });
           total += hitEnemy(run, target, amt);
         }
@@ -1155,7 +1157,7 @@
     let bossScale = scale;
     if (theme && run.act > 1 && run.act <= theme.acts.length) bossScale = scale * (1 + 0.18 * (run.act - 1));
     const enemies = encIds.map(id => spawnEnemy(run, id, bossScale));
-    const deckCopy = run.player.deck.map(x => ({ id: x.id, up: x.up, uid: uid() }));
+    const deckCopy = run.player.deck.map(x => ({ id: x.id, up: x.up, path: x.path, uid: uid() }));
     run.combat = {
       kind, turn: 0, over: false, won: false,
       enemies,
@@ -2466,6 +2468,30 @@
       run.pending = { type: 'remove', n: 1 };
       saveRun(run);
     },
+    /* ---------- v7:卡牌熔铸(篝火融合两卡为一) ---------- */
+    availableFusions(run) {
+      const F = GS.FUSIONS;
+      return F ? F.available(run) : [];
+    },
+    restFuse(run, recipeId) {
+      if (run.screen !== 'rest' || run.restDone) return false;
+      const F = GS.FUSIONS;
+      const r = F && F.get(recipeId);
+      if (!r || !F.canFuse(run, r)) return false;
+      for (const m of r.materials) {
+        // 优先消耗未升级的副本,保留玩家的升级投入
+        const cands = [];
+        run.player.deck.forEach((x, i) => { if (x.id === m) cands.push(i); });
+        cands.sort((a, b) => (run.player.deck[a].up ? 1 : 0) - (run.player.deck[b].up ? 1 : 0));
+        run.player.deck.splice(cands[0], 1);
+      }
+      run.player.deck.push({ id: r.result, up: 0 });
+      if (GS.Codex) GS.Codex.record('cards', r.result);
+      run.restDone = true;
+      pushEv(run, { t: 'text', msg: '⚗️ 熔铸成功,「' + CARDS.get(r.result).name + '」降生于你的卡组!' });
+      saveRun(run);
+      return true;
+    },
     leaveRest(run) {
       run.screen = 'map';
       saveRun(run);
@@ -2622,7 +2648,7 @@
         }
       } else if (p.type === 'duplicate') {
         const inst = run.player.deck[indices[0]];
-        if (inst) run.player.deck.push({ id: inst.id, up: inst.up });
+        if (inst) run.player.deck.push({ id: inst.id, up: inst.up, path: inst.path });
       } else if (p.type === 'colorless') {
         const id = indices.id;
         if (id) run.player.deck.push({ id, up: 0 });

@@ -18,6 +18,7 @@ require('../js/potions.js');
 require('../js/events.js');
 require('../js/packs.js');
 require('../js/themes.js');
+require('../js/fusions.js');
 require('../js/codex.js');
 require('../js/engine.js');
 
@@ -1120,6 +1121,77 @@ function mechanicTests() {
         n++;
       }
     }
+  }
+  // v7 修复:B 升级分支(path=2)曾因 cardView/startCombat 丢失 path 而完全失效
+  {
+    const run = Engine.newRun('mystery', 306);
+    run.player.deck = [{ id: 'mn_ghostfire', up: 0 }, { id: 'defend', up: 0 }];
+    run.screen = 'rest'; run.restDone = false;
+    run.pending = { type: 'smith', n: 1 };
+    Engine.resolvePendingBranch(run, 0, 2);
+    assert(run.player.deck[0].up === 1 && run.player.deck[0].path === 2, 'B分支未写入 path');
+    const v = Engine.effectiveView(run, run.player.deck[0]);
+    assert(v.name === '鬼火焚身·燎原', `B分支卡面错误: ${v.name}`);
+    assert(v.target === 'all', 'B分支未继承 AoE 目标');
+    // 战斗内应按 AoE + 魂火加成结算(attackBonus 曾被 attackAll 忽略)
+    forceCombat(run, ['mn_paperman', 'mn_paperman'], 'normal');
+    const c = run.combat;
+    const inCombat = c.draw.concat(c.hand, c.discard).find(x => x.id === 'mn_ghostfire');
+    assert(inCombat && inCombat.path === 2, '战斗卡组复制丢失 path');
+    c.player.statuses.soulfire = 4;
+    const gi = c.hand.findIndex(h => h.id === 'mn_ghostfire');
+    assert(gi >= 0 && Engine.canPlay(run, gi), '鬼火焚身·燎原不在手牌或不可打出');
+    const hp0 = c.enemies[0].hp, hp1 = c.enemies[1].hp;
+    Engine.playCard(run, gi, 0);
+    assert(hp0 - c.enemies[0].hp >= 8 && hp1 - c.enemies[1].hp >= 8,
+      `B分支 AoE 未生效: ${hp0 - c.enemies[0].hp}/${hp1 - c.enemies[1].hp}`);
+    assert((c.player.statuses.soulfire || 0) === 0, 'B分支未消耗魂火');
+  }
+  // v7:熔铸 —— 配方识别、优先消耗未升级副本、占用篝火、战斗内可用
+  {
+    const run = Engine.newRun('warrior', 307);
+    run.screen = 'rest'; run.restDone = false;
+    run.player.deck = [
+      { id: 'heavy', up: 1 }, { id: 'heavy', up: 0 },
+      { id: 'clothesline', up: 0 }, { id: 'defend', up: 0 }
+    ];
+    const avail = Engine.availableFusions(run).map(r => r.id);
+    assert(avail.includes('f_warhammer'), `熔铸配方未识别: ${avail}`);
+    assert(Engine.restFuse(run, 'f_warhammer') === true, '熔铸执行失败');
+    const ids = run.player.deck.map(x => x.id);
+    assert(ids.includes('fu_warhammer') && !ids.includes('clothesline'), '熔铸材料/结果异常');
+    assert(run.player.deck.filter(x => x.id === 'heavy').length === 1 &&
+      run.player.deck.find(x => x.id === 'heavy').up === 1, '熔铸应保留已升级副本');
+    assert(run.restDone === true, '熔铸未占用篝火次数');
+    assert(Engine.restFuse(run, 'f_warhammer') === false, '重复熔铸应被拒绝');
+    forceCombat(run, ['jawworm'], 'normal');
+    const c = run.combat;
+    const fi = c.hand.findIndex(h => h.id === 'fu_warhammer');
+    assert(fi >= 0, '崩山巨锤不在手牌');
+    const hpB = c.enemies[0].hp;
+    Engine.playCard(run, fi, 0);
+    assert(hpB - c.enemies[0].hp >= 20, `崩山巨锤伤害异常: ${hpB - c.enemies[0].hp}`);
+    assert((c.enemies[0].statuses.weak || 0) === 3, '崩山巨锤未施加虚弱');
+  }
+  // v7:神秘复苏熔铸 —— 柴刀 + 棺材钉 = 诡异长枪
+  {
+    const run = Engine.newRun('mystery', 308);
+    run.screen = 'rest'; run.restDone = false;
+    run.player.deck.push({ id: 'mn_chaiknife', up: 0 }, { id: 'mn_coffinnail', up: 0 });
+    assert(Engine.availableFusions(run).some(r => r.id === 'f_eeriespear'), '柴刀配方未识别');
+    assert(Engine.restFuse(run, 'f_eeriespear') === true, '诡异长枪熔铸失败');
+    assert(!run.player.deck.some(x => x.id === 'mn_chaiknife' || x.id === 'mn_coffinnail'), '材料卡未消耗');
+    run.player.deck = run.player.deck.filter(x => x.id === 'fu_eeriespear');
+    run.player.deck.push({ id: 'defend', up: 0 });
+    forceCombat(run, ['mn_paperman'], 'normal');
+    const c = run.combat;
+    const si = c.hand.findIndex(h => h.id === 'fu_eeriespear');
+    assert(si >= 0 && Engine.canPlay(run, si), '诡异长枪不可打出');
+    const hpB = c.enemies[0].hp;
+    Engine.playCard(run, si, 0);
+    assert(hpB - c.enemies[0].hp >= 14, `诡异长枪伤害异常: ${hpB - c.enemies[0].hp}`);
+    assert((c.player.statuses.soulfire || 0) === 2, '诡异长枪未获得魂火');
+    assert((c.enemies[0].statuses.vuln || 0) === 2, '诡异长枪未施加易伤');
   }
 }
 

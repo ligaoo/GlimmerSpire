@@ -589,7 +589,7 @@
     name: '逕庭拳', desc: '造成 {D} 点伤害。若目标带有减益,伤害翻倍。',
     up: { dmg: 12, desc: '造成 {D} 点伤害。若目标带有减益,伤害翻倍。' },
     play(A, inst, t) {
-      const v = CARDS.view({ id: inst.id, up: inst.up ? 1 : 0 });
+      const v = CARDS.view({ id: inst.id, up: inst.up ? 1 : 0, path: inst.path });
       if (A.targetHasDebuff(t)) A.attackBonus(v.dmg);
       A.attack(t);
     }
@@ -631,7 +631,7 @@
     name: '黑闪', desc: '造成 {D} 点伤害。若触发黑闪,改为四倍伤害并获得 3 点咒力。',
     up: { dmg: 24, desc: '造成 {D} 点伤害。若触发黑闪,改为四倍伤害并获得 3 点咒力。' },
     play(A, inst, t) {
-      const v = CARDS.view({ id: inst.id, up: inst.up ? 1 : 0 });
+      const v = CARDS.view({ id: inst.id, up: inst.up ? 1 : 0, path: inst.path });
       A.attackBonus(v.dmg * (inst.up ? 3 : 3));
       A.attack(t);
     }

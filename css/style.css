@@ -832,3 +832,23 @@ button.ghost { background: transparent; border-color: #3a4570; color: var(--text
 .phase2-badge { position: absolute; top: 14px; right: 50%; transform: translateX(50%); z-index: 3;
   background: linear-gradient(135deg, rgba(140, 40, 16, .95), rgba(60, 16, 8, .95)); border: 1px solid #ff7a45;
   border-radius: 8px; padding: 1px 8px; font-size: 11px; color: #ffc9a3; white-space: nowrap; }
+
+/* ---- v7 卡牌熔铸 ---- */
+.fusion-list { display: flex; flex-direction: column; gap: 14px; margin: 10px 0; }
+.fusion-recipe { border: 1px solid #3d4a80; border-radius: 12px; padding: 12px;
+  background: rgba(20, 27, 55, .55); display: flex; flex-direction: column; gap: 8px; }
+.fusion-recipe.locked { opacity: .55; filter: saturate(.5); }
+.fusion-cards { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.fusion-plus { color: #9aa3c7; font-size: 22px; font-weight: 700; }
+.fusion-arrow { color: var(--gold); font-size: 22px; }
+.fusion-info { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.fusion-name { color: #e8ecff; font-size: 14px; }
+.fusion-tag { background: rgba(110, 231, 255, .12); color: #6ee7ff; border-radius: 6px;
+  padding: 1px 8px; font-size: 12px; margin-right: 6px; }
+.fusion-note { color: #9aa3c7; font-size: 12px; margin-left: 8px; }
+.fusion-lock { color: #ff9a76; font-size: 13px; }
+.fusion-btn { font-size: 14px; padding: 5px 18px; }
+@media (max-width: 720px) {
+  .fusion-cards .card { width: 112px; height: 160px; }
+  .fusion-cards .card .cdesc { font-size: 10px; }
+}
