@@ -1404,7 +1404,7 @@ if (!themeOnly) {
 }
 
 console.log('== 联动主题对局(神秘复苏 / 咒术回战) ==');
-const themeRuns = themeOnly ? themeSampleN : (quick ? 3 : 10);
+const themeRuns = themeOnly ? themeSampleN : (quick ? 3 : 25); // 25 局压方差:10 局时阈值边缘主题(jjk/妖尾)会随机翻车
 const themeWinRate = {};
 const themeAvgAct = {};
 for (const theme of GS.THEMES.all) {

@@ -69,7 +69,7 @@
     growstaff: ['法天象地', '每当你打出一张攻击牌,获得 1 层棍势'],
     majesty: ['大圣威仪', '每回合开始时获得 2 层棍势'],
     sixarms: ['三头六臂', '你的攻击牌伤害提升(每层 +2)'],
-    dragonforce: ['龙之意志', '每层使你的攻击 +15%(最多按 2 层计),每回合结束 -1 层'],
+    dragonforce: ['龙之意志', '每层使你的攻击 +15%(最多按 3 层计),每回合结束 -1 层'],
     scales: ['灭龙之鳞', '每回合开始时,获得等同层数的格挡'],
     monkeys: ['身外身法', '每回合开始时,将 1 张「猴子猴孙」加入手牌'],
     burnlife: ['燃烧生命', '回合结束时失去等同层数的生命'],
@@ -263,7 +263,7 @@
       const title = $('#hud-title');
       if (theme) {
         title.innerHTML = `<span class="theme-badge">${theme.art} ${esc(theme.name)}</span>` +
-          (run.player.curse ? `<span class="curse-badge" title="污染:每层使你的伤害提高,同时镜域之值更深">🩸 污染 ${run.player.curse}</span>` : '');
+          (run.player.curse ? `<span class="curse-badge" title="污染:每层使你的伤害提高,但敌人血量更高、攻击更凶">🩸 污染 ${run.player.curse}</span>` : '');
       } else {
         title.textContent = '微光尖塔';
       }

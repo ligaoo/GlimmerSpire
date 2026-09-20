@@ -199,6 +199,8 @@
     // 主题:污染越深,敌人越强(与玩家伤害加成形成取舍,有上限)
     const t = themeOf(run);
     if (t && t.curseHp) hp = Math.floor(hp * (1 + Math.min(0.3, t.curseHp * (run.player.curse || 0))));
+    // 主题:第一幕普通/精英敌人血量按主题校准,修正联动开局过软(BOSS 已对齐,不动)
+    if (t && run.act === 1 && !d.boss && t.act1HpMult) hp = Math.floor(hp * t.act1HpMult);
     // 难度/进阶/每日:全局敌人生命倍率
     if (run.enemyHpMult) hp = Math.floor(hp * run.enemyHpMult);
     const e = {
@@ -261,9 +263,9 @@
     if (th && th.redline && run.combat.light && run.combat.light.val <= th.redline + relicVal(run, 'redlinePlus')) {
       atk += th.redlineBonus || 0;
     }
-    // 主题:「龙之意志」——每层攻击 +15%(最多按 2 层计)
+    // 主题:「龙之意志」——每层攻击 +15%(最多按 3 层计)
     const df = run.combat.player.statuses.dragonforce || 0;
-    if (df > 0) atk = Math.floor(atk * (1 + 0.15 * Math.min(2, df)));
+    if (df > 0) atk = Math.floor(atk * (1 + 0.15 * Math.min(3, df)));
     // 主题:「三头六臂」——攻击牌伤害提升(每层 +2)
     if ((run.combat.player.statuses.sixarms || 0) > 0) atk += run.combat.player.statuses.sixarms * 2;
     if (statusOf(run.combat.player, 'weak') > 0) atk = Math.floor(atk * 0.75);
@@ -295,6 +297,9 @@
 
   function calcEnemyAttack(run, e, base) {
     let atk = base + statusOf(e, 'str');
+    // 主题:魔障越深,敌人攻击越凶(与玩家的污染增伤形成取舍,有上限)
+    const th = themeOf(run);
+    if (th && th.curseAtk) atk = Math.floor(atk * (1 + Math.min(0.24, th.curseAtk * (run.player.curse || 0))));
     if (statusOf(e, 'weak') > 0) atk = Math.floor(atk * 0.75);
     // 主题:「镇压」使敌人造成的伤害降低
     if (statusOf(e, 'seal') > 0) atk = Math.floor(atk * 0.75);

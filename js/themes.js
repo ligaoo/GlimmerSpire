@@ -30,7 +30,8 @@
     fieldLabel: '镜域',
     fieldMax: 10,
     curseDmg: 2,
-    curseHp: 0.05,
+    curseHp: 0.08,
+    curseAtk: 0.04, act1HpMult: 1.15,
     startHp: 75,
     starterDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'soulfire'],
     starterRelic: 'mystbell',
@@ -418,7 +419,9 @@
     tip: '咒力是战斗内的燃料;每回合第一张咒术牌免费;黑闪有 25% 几率暴击;领域积满会反噬,也会解锁「领域展开」。',
     fieldLabel: '领域',
     fieldMax: 12,
-    curseHp: 0.05,
+    curseDmg: 2,
+    curseHp: 0.08,
+    curseAtk: 0.04, act1HpMult: 0.95,
     startHp: 80,
     starterDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'jj_ce'],
     starterRelic: 'jjkcore',
@@ -712,11 +715,11 @@
     }
   });
   edef({
-    id: 'jj_specialgrade', name: '特级咒灵', art: '🕯️', maxHp: [125, 135], boss: true,
+    id: 'jj_specialgrade', name: '特级咒灵', art: '🕯️', maxHp: [115, 125], boss: true,
     moves: {
       slashC: { name: '咒斩', intent: 'attack', dmg: 14, exec(A) { A.attack(); } },
       domain: { name: '领域侵蚀', intent: 'attackDebuff', dmg: 9, exec(A) { A.attack(); A.modifyField(2); A.debuffPlayer('frail', 2); } },
-      heal: { name: '咒力循环', intent: 'buff', exec(A) { A.healSelf(18); A.buffSelf('str', 3); } },
+      heal: { name: '咒力循环', intent: 'buff', exec(A) { A.healSelf(14); A.buffSelf('str', 3); } },
       crush: { name: '压杀', intent: 'strong', dmg: 26, exec(A) { A.attack(); } }
     },
     ai(self, ctx) {
@@ -725,7 +728,7 @@
       if (phase2 && !self._p2) { self._p2 = true; return 'crush'; }
       return phase2
         ? ['slashC', 'crush', 'domain', 'heal'][(ctx.turn - 1) % 4]
-        : ['slashC', 'slashC', 'heal', 'domain'][(ctx.turn - 1) % 4];
+        : ['slashC', 'slashC', 'domain', 'slashC'][(ctx.turn - 1) % 4];
     }
   });
   edef({
@@ -803,7 +806,8 @@
     fieldLabel: '嫉妒',
     fieldMax: 10,
     curseDmg: 2,
-    curseHp: 0.05,
+    curseHp: 0.08,
+    curseAtk: 0.04, act1HpMult: 1.25,
     startHp: 78,
     deathRewind: true,
     starterDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'rz_contract'],
@@ -1181,7 +1185,8 @@
     fieldLabel: '负荷',
     fieldMax: 12,
     curseDmg: 2,
-    curseHp: 0.05,
+    curseHp: 0.08,
+    curseAtk: 0.04, act1HpMult: 0.9,
     startHp: 85,
     light: { start: 10, max: 10 },
     redline: 3,
@@ -1554,7 +1559,8 @@
     fieldLabel: '心魔',
     fieldMax: 11,
     curseDmg: 2,
-    curseHp: 0.05,
+    curseHp: 0.08,
+    curseAtk: 0.04, act1HpMult: 1.1,
     startHp: 82,
     starterDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'xy_hair'],
     starterRelic: 'xy_cudgel',
@@ -1915,7 +1921,8 @@
     fieldLabel: '魔障',
     fieldMax: 12,
     curseDmg: 2,
-    curseHp: 0.05,
+    curseHp: 0.08,
+    curseAtk: 0.04, act1HpMult: 1.2,
     startHp: 80,
     starterDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'ft_feast'],
     starterRelic: 'ft_emblem',
