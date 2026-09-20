@@ -108,13 +108,14 @@
     ai(self, ctx) { return ctx.turn % 2 === 1 ? 'beam' : 'charge'; }
   });
   def({
-    id: 'beastking', name: '血斧兽王', art: '🐗', maxHp: [92, 96], elite: true,
+    id: 'beastking', name: '血斧兽王', art: '🐗', maxHp: [84, 88], elite: true,
     moves: {
-      bash: { name: '颅骨粉碎', intent: 'attackDebuff', dmg: 10, exec(A) { A.attack(); A.debuffPlayer('vuln', 2); } },
-      rush: { name: '蛮冲', intent: 'attack', dmg: 14, exec(A) { A.attack(); } }
+      bash: { name: '颅骨粉碎', intent: 'attackDebuff', dmg: 8, exec(A) { A.attack(); A.debuffPlayer('vuln', 1); } },
+      rush: { name: '蛮冲', intent: 'attack', dmg: 11, exec(A) { A.attack(); } }
     },
-    // 每当玩家打出技能牌获得3力量(引擎在 onPlayerSkill 调用)
-    onPlayerSkill(A, self) { A.buffSelf('str', 3); },
+    // 每当玩家打出技能牌获得力量。总量封顶 +10:第一幕玩家的唯一防御手段就是技能牌(防御),
+    // 无限叠会让"越防御它越强"滚成无解死局(实测曾占第一幕全部死亡的 42%)
+    onPlayerSkill(A, self) { const s = self.statuses.str || 0; if (s < 10) A.buffSelf('str', Math.min(2, 10 - s)); },
     ai(self, ctx) {
       if (ctx.turn === 1) return 'bash';
       return GS.RNG.pick(ctx.run, ['rush', 'rush', 'bash']);
@@ -123,11 +124,11 @@
 
   /* ================= 第一幕:BOSS ================= */
   def({
-    id: 'stonegolem', name: '石魔像', art: '⛰️', maxHp: [130, 130], boss: true,
+    id: 'stonegolem', name: '石魔像', art: '⛰️', maxHp: [118, 118], boss: true,
     moves: {
-      fists: { name: '双拳连击', intent: 'attack', dmg: 9, hits: 2, exec(A) { A.attack({ times: 2 }); } },
-      charge: { name: '蓄力', intent: 'buff', exec(A) { A.gainSelfBlock(10); A.buffSelf('str', 2); } },
-      quake: { name: '大地震颤', intent: 'strong', dmg: 22, exec(A) { A.attack(); } }
+      fists: { name: '双拳连击', intent: 'attack', dmg: 8, hits: 2, exec(A) { A.attack({ times: 2 }); } },
+      charge: { name: '蓄力', intent: 'buff', exec(A) { A.gainSelfBlock(6); A.buffSelf('str', 2); } },
+      quake: { name: '大地震颤', intent: 'strong', dmg: 18, exec(A) { A.attack(); } }
     },
     ai(self, ctx) {
       const m = (ctx.turn - 1) % 3;
@@ -330,6 +331,8 @@
   });
 
   /* ================= 遭遇表 ================= */
+  // 编队池:每个 act 的普通遭遇至少 12 组,且尽量"混编"(1 强 + 小怪)而不是同种克隆 ——
+  // 克隆包解法单一(永远集火最脆的),混编包才会逼玩家做取舍。
   const ENCOUNTERS = {
     1: {
       normal: [
@@ -338,9 +341,18 @@
         ['acidslimeS', 'acidslimeS'],
         ['spikyslime', 'acidslimeS'],
         ['fungibeast', 'fungibeast'],
-        ['louse', 'louse', 'louse']
+        ['louse', 'louse', 'louse'],
+        // 以下为扩充(复用第一幕既有敌人,总血量压在既有区间 24-56 内)
+        ['acidslimeM', 'louse'],
+        ['spikyslime', 'fungibeast'],
+        ['fungibeast', 'louse', 'louse'],
+        ['acidslimeM', 'acidslimeS'],
+        ['spikyslime', 'louse'],
+        ['acidslimeM', 'fungibeast'],
+        ['spikyslime', 'acidslimeS', 'louse'],
+        ['jawworm', 'louse']
       ],
-      elite: [['lagavulin'], ['sentry', 'sentry'], ['beastking']],
+      elite: [['lagavulin'], ['sentry', 'sentry'], ['beastking'], ['sentry', 'sentry', 'acidslimeS']],
       boss: [['stonegolem']]
     },
     2: {
@@ -350,9 +362,17 @@
         ['madman'],
         ['puppeteer', 'puppet', 'puppet'],
         ['shieldbearer', 'shieldbearer'],
-        ['snakevine', 'bat', 'bat']
+        ['snakevine', 'bat', 'bat'],
+        // 以下为扩充(复用第二幕既有敌人,总血量与既有包同档 58-106)
+        ['madman', 'puppet'],
+        ['shieldbearer', 'puppet', 'puppet'],
+        ['bat', 'bat', 'puppet'],
+        ['snakevine', 'shieldbearer'],
+        ['puppeteer', 'puppet'],
+        ['madman', 'bat'],
+        ['shieldbearer', 'bat', 'bat']
       ],
-      elite: [['stabbook'], ['lizardking'], ['soulcaller']],
+      elite: [['stabbook'], ['lizardking'], ['soulcaller'], ['soulcaller', 'puppet']],
       boss: [['reaper']]
     },
     3: {
@@ -362,9 +382,17 @@
         ['shade', 'shade', 'shade'],
         ['skullreaper'],
         ['eyetyrant', 'shade', 'shade'],
-        ['weaver', 'shade']
+        ['weaver', 'shade'],
+        // 以下为扩充(复用第三幕既有敌人,总血量压在既有区间 60-114 内)
+        ['gargoyle', 'shade'],
+        ['eyetyrant', 'shade'],
+        ['skullreaper', 'ghost'],
+        ['eyetyrant', 'ghost', 'ghost'],
+        ['weaver', 'shade', 'shade'],
+        ['gargoyle', 'ghost'],
+        ['skullreaper', 'shade']
       ],
-      elite: [['gianthead'], ['twinguard'], ['abyssshadow']],
+      elite: [['gianthead'], ['twinguard'], ['abyssshadow'], ['twinguard', 'shade']],
       boss: [['devourer']]
     }
   };

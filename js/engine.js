@@ -147,6 +147,21 @@
         }
       });
     }
+    // 连通性保证:每个节点至少有一条通向非精英的出路。
+    // 否则会出现"唯一可达 = 精英"的层(实测第一幕第 12 层出现过),血量低时等于直接判死,
+    // 而且玩家前面看不见会踩进去。最后一排(篝火排)本身就是非精英,不用处理。
+    for (let r = 0; r < rows - 2; r++) {
+      const cur = map[r], nxt = map[r + 1];
+      const safe = [];
+      nxt.forEach((m, j) => { if (m.type !== 'elite') safe.push(j); });
+      if (!safe.length) continue;
+      cur.forEach((n) => {
+        const targets = (n.edges || []).map((j) => nxt[j]);
+        if (!targets.length || targets.some((m) => m.type !== 'elite')) return;
+        const pick = safe.reduce((a, b) => (Math.abs(nxt[b].x - n.x) < Math.abs(nxt[a].x - n.x) ? b : a));
+        n.edges.push(pick);
+      });
+    }
   }
 
   function genMap(run) {
@@ -382,11 +397,12 @@
       if ((cb.rbdUsed || 0) < maxUse) { cb.rbdUsed = (cb.rbdUsed || 0) + 1; used = true; }
       else if (statusOf(cb.player, 'rewind') > 0) { addStatus(run, cb.player, 'rewind', -1, true); used = true; }
       if (used) {
-        run.player.hp = Math.max(1, cb.rbdHp);
+        const ratio = (themeOf(run) && themeOf(run).rbdRestore) || 1;
+        run.player.hp = Math.max(1, Math.floor(cb.rbdHp * ratio));
         for (const k of ['vuln', 'weak', 'frail']) delete cb.player.statuses[k];
         addStatus(run, cb.player, 'witchscent', 1, true);
         pushEv(run, { t: 'fx', fx: 'aoe' });
-        pushEv(run, { t: 'text', msg: '「死亡回归」——时间倒回了存档点!' });
+        pushEv(run, { t: 'text', msg: '「死亡回归」——时间倒回了存档点!(生命 ' + run.player.hp + ')' });
         return;
       }
     }
@@ -1377,7 +1393,8 @@
         c.light.val = Math.max(0, c.light.val - 1);
         pushEv(run, { t: 'status', who: 'player', key: 'light', v: c.light.val });
         if (c.light.val <= 0) {
-          const drain = 2 + run.act;
+          const t = themeOf(run);
+          const drain = ((t && t.lightDrain) || 2) + run.act;
           run.player.hp = Math.max(0, run.player.hp - drain);
           c.hpLostThisTurn += drain;
           pushEv(run, { t: 'dmg', who: 'player', v: drain, self: true });

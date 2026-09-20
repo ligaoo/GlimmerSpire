@@ -126,5 +126,59 @@ console.log('\n[机制抽查]');
   ok(!!r.combat.player.ghostKey, `福音书开局有精灵(${r.combat.player.ghostName || '无'})`);
 }
 
+/* 第一幕"两堵墙"的数值回归 —— 实测这两处曾吃掉第一幕 92% 的死亡(石魔像+BOSS 42 局全灭、
+   血斧兽王 38 局全灭),调过一轮;这些数字是刻意选的,防止被无意改回去。
+   调参依据见 test/diag-act1.js 的输出。 */
+console.log('\n[第一幕两堵墙]');
+{
+  const golem = GS.ENEMIES.defs.stonegolem;
+  const bk = GS.ENEMIES.defs.beastking;
+  ok(golem.maxHp[0] === 118 && golem.maxHp[1] === 118, `石魔像血量 118(实际 ${golem.maxHp.join('-')})`);
+  ok(golem.moves.fists.dmg === 8 && golem.moves.fists.hits === 2, `石魔像双拳 8×2(实际 ${golem.moves.fists.dmg}×${golem.moves.fists.hits})`);
+  ok(golem.moves.quake.dmg === 18, `石魔像大地震颤 18(实际 ${golem.moves.quake.dmg})`);
+  ok(bk.maxHp[0] === 84 && bk.maxHp[1] === 88, `血斧兽王血量 84-88(实际 ${bk.maxHp.join('-')})`);
+  ok(bk.moves.rush.dmg === 11, `兽王蛮冲 11(实际 ${bk.moves.rush.dmg})`);
+  ok(bk.moves.bash.dmg === 8, `兽王颅骨粉碎 8(实际 ${bk.moves.bash.dmg})`);
+  ok(typeof bk.onPlayerSkill === 'function', '兽王保留"技能反制"钩子');
+
+  // 兽王力量必须封顶:第一幕玩家唯一的防御手段就是技能牌,无限叠会把战斗滚成无解死局
+  const r = Engine.newRun('warrior', 606);
+  Engine._testStartCombat(r, ['beastking'], 'elite');
+  const c = r.combat, e = c.enemies[0];
+  for (let i = 0; i < 40; i++) bk.onPlayerSkill({ buffSelf: (k, n) => { e.statuses[k] = (e.statuses[k] || 0) + n; } }, e);
+  ok(e.statuses.str <= 10, `兽王力量封顶 <=10(实际 ${e.statuses.str})`);
+}
+
+/* 可配旋钮存在性:这些数值以前是引擎里的硬编码常量,现在走主题数据,便于按主题调 */
+console.log('\n[可配旋钮]');
+{
+  const t = GS.THEMES.get('rezero');
+  ok(typeof t.rbdRestore === 'number' && t.rbdRestore === 0.5, `从零 rbdRestore=0.5(实际 ${t.rbdRestore})`);
+  const u = GS.THEMES.get('ultraman');
+  ok(u.light && u.redline !== undefined, '奥特曼光能/红色警戒字段在位');
+  const j = GS.THEMES.get('journey');
+  ok(typeof j.curseDmgCap === 'number', `西游记 curseDmgCap 可配(实际 ${j.curseDmgCap})`);
+}
+
+/* 编队池规模:每幕普通遭遇 >=12 组(否则一个 act 打 5-6 场普通战必然重复) */
+console.log('\n[编队池规模]');
+{
+  for (const act of [1, 2, 3]) {
+    const e = GS.ENEMIES.encounters(act);
+    ok(e.normal.length >= 12, `第 ${act} 幕普通遭遇 ${e.normal.length} 组(期望 >=12)`);
+    ok(e.elite.length >= 4, `第 ${act} 幕精英遭遇 ${e.elite.length} 组(期望 >=4)`);
+    // 克隆包(同一敌人 x N)解法单一,占比不宜过高
+    const clones = e.normal.filter(pack => new Set(pack).size === 1 && pack.length > 1).length;
+    ok(clones <= 3, `第 ${act} 幕克隆包 ${clones} 组(期望 <=3)`);
+  }
+}
+
+/* 稀有战斗药水:至少 3 种能改变战斗的(之前稀有药水只有"给金币") */
+console.log('\n[稀有战斗药水]');
+{
+  const rares = GS.POTIONS.all.filter(id => GS.POTIONS.get(id).rarity === 'rare' && !GS.POTIONS.get(id).anywhere);
+  ok(rares.length >= 3, `战斗用稀有药水 ${rares.length} 种(期望 >=3)`);
+}
+
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过');
 process.exit(fails ? 1 : 0);

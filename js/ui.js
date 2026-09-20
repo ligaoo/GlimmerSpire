@@ -1015,6 +1015,19 @@
       panel.appendChild(el('div', 'end-title lose', theme ? '你被鬼潮吞没了' : '你倒下了'));
       const sc = Engine.score(run);
       const pts = Engine.awardRunPoints(run);
+      // 长线目标摆到眼前:告诉玩家离下一个能买的技能包还差多少积分
+      const avail = Engine.availablePoints();
+      const locked = GS.Unlocks.all.filter(p => !GS.Unlocks.owned(p.id));
+      const cheapest = locked.length ? locked.reduce((a, b) => (b.cost < a.cost ? b : a)) : null;
+      let nextGoal = '';
+      if (cheapest) {
+        const gap = cheapest.cost - avail;
+        nextGoal = gap <= 0
+          ? `<span style="font-size:13px;color:#7ee787">🛒 可用积分 <b>${avail}</b> —— 已经够解锁「${esc(cheapest.name)}」了</span>`
+          : `<span style="font-size:13px;color:#9aa3c7">🛒 可用积分 <b style="color:#6ee7ff">${avail}</b> · 距解锁「${esc(cheapest.name)}」还差 <b style="color:#f0c96a">${gap}</b> 积分</span>`;
+      } else {
+        nextGoal = `<span style="font-size:13px;color:#7ee787">🛒 可用积分 <b>${avail}</b> —— 技能包已全部解锁</span>`;
+      }
       const table = el('div', 'score-table');
       const prog = theme
         ? `到达:<b>${run.act <= theme.acts.length ? theme.acts[run.act - 1].name : '无尽'}</b> · 第 ${run.floorTotal} 层`
@@ -1025,6 +1038,7 @@
         <span>剩余金币:<b>${run.player.gold}</b></span>
         <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
         <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>
+        ${nextGoal}
         <span style="font-size:12px;color:#9aa3c7">🎲 本局种子:${run.seed}(「种子挑战」可重放此局)</span>`;
       panel.appendChild(table);
       const btns = el('div', 'modal-btns');
@@ -1047,6 +1061,19 @@
       panel.appendChild(el('div', 'end-title win', theme ? `${theme.name} · 镜域制霸!` : '登顶成功!'));
       const sc = Engine.score(run);
       const pts = Engine.awardRunPoints(run);
+      // 长线目标摆到眼前:告诉玩家离下一个能买的技能包还差多少积分
+      const avail = Engine.availablePoints();
+      const locked = GS.Unlocks.all.filter(p => !GS.Unlocks.owned(p.id));
+      const cheapest = locked.length ? locked.reduce((a, b) => (b.cost < a.cost ? b : a)) : null;
+      let nextGoal = '';
+      if (cheapest) {
+        const gap = cheapest.cost - avail;
+        nextGoal = gap <= 0
+          ? `<span style="font-size:13px;color:#7ee787">🛒 可用积分 <b>${avail}</b> —— 已经够解锁「${esc(cheapest.name)}」了</span>`
+          : `<span style="font-size:13px;color:#9aa3c7">🛒 可用积分 <b style="color:#6ee7ff">${avail}</b> · 距解锁「${esc(cheapest.name)}」还差 <b style="color:#f0c96a">${gap}</b> 积分</span>`;
+      } else {
+        nextGoal = `<span style="font-size:13px;color:#7ee787">🛒 可用积分 <b>${avail}</b> —— 技能包已全部解锁</span>`;
+      }
       const table = el('div', 'score-table');
       const loc = theme
         ? `通关镜域:<b>${theme.acts.map(a => a.name).join(' → ')}</b>`
@@ -1058,6 +1085,7 @@
         ${run.daily ? `<span>🗓️ 每日挑战通关(积分 ×1.5)</span>` : ''}
         <span style="font-size:22px">最终得分:<b style="color:#f0c96a">${sc}</b></span>
         <span style="font-size:17px">🏆 获得积分:<b style="color:#6ee7ff">+${pts}</b>(可用于解锁技能包)</span>
+        ${nextGoal}
         <span style="font-size:12px;color:#9aa3c7">🎲 本局种子:${run.seed}(「种子挑战」可重放此局)</span>`;
       panel.appendChild(table);
       // v5:进阶解锁提示

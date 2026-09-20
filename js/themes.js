@@ -812,6 +812,9 @@
     curseAtk: 0.04, act1HpMult: 1.25,
     startHp: 78,
     deathRewind: true,
+    // 死亡回归的倒回比例:回满到"开战时的血量"=每场战斗免费免死一次(实测通关率 25%,其余主题 0-4%);
+    // 改为回到开战血量的一半,保留二次机会但让每次发动都真的有代价(实测 8-13%)
+    rbdRestore: 0.5,
     starterDeck: ['strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'rz_contract'],
     starterRelic: 'rz_gospel',
     basic: ['rz_strike', 'rz_defend', 'rz_contract'],

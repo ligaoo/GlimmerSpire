@@ -32,6 +32,18 @@
   def({ id: 'thornspotion', name: '荆棘药水', art: '🌵', rarity: 'common', target: 'none',
     desc: '获得 5 点荆棘。', use(A) { A.applySelf('thorns', 5); } });
 
+  /* ===== 稀有战斗药水 =====
+     之前的稀有药水只有「幸运药水」(给 120 金币,不是战斗效果),导致药水整体只有小数值加成,
+     玩家没有"这瓶留给 BOSS"的心理,实测整局带着 3 瓶一口不喝。这里补上真正能改变战斗的药水。 */
+  def({ id: 'mightpotion', name: '巨力药水', art: '🦾', rarity: 'rare', target: 'none',
+    desc: '获得 3 点力量与 3 点敏捷。', use(A) { A.applySelf('str', 3); A.applySelf('dex', 3); } });
+  def({ id: 'aegispotion', name: '圣盾药水', art: '🛡️', rarity: 'rare', target: 'none',
+    desc: '获得 30 点格挡。', use(A) { A.gainBlock(30); } });
+  def({ id: 'timeslip', name: '时之药水', art: '⏳', rarity: 'rare', target: 'none',
+    desc: '抽 5 张牌,并获得 2 点能量。', use(A) { A.draw(5); A.gainEnergy(2); } });
+  def({ id: 'executioner', name: '处决药水', art: '⚔️', rarity: 'rare', target: 'enemy',
+    desc: '对 1 名敌人造成 45 点伤害。', use(A, inst, t) { A.dealMagicDamage(t, 45); } });
+
   const IDS = Object.keys(P);
 
   global.GS.POTIONS = {
