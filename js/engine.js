@@ -299,7 +299,7 @@
     let atk = base + statusOf(e, 'str');
     // 主题:魔障越深,敌人攻击越凶(与玩家的污染增伤形成取舍,有上限)
     const th = themeOf(run);
-    if (th && th.curseAtk) atk = Math.floor(atk * (1 + Math.min(0.24, th.curseAtk * (run.player.curse || 0))));
+    if (th && th.curseAtk) atk = Math.floor(atk * (1 + Math.min(th.curseAtkCap || 0.24, th.curseAtk * (run.player.curse || 0))));
     if (statusOf(e, 'weak') > 0) atk = Math.floor(atk * 0.75);
     // 主题:「镇压」使敌人造成的伤害降低
     if (statusOf(e, 'seal') > 0) atk = Math.floor(atk * 0.75);
