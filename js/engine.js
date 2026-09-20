@@ -198,7 +198,7 @@
     if (scale > 1) hp = Math.floor(hp * (1 + 0.35 * (scale - 1)));
     // 主题:污染越深,敌人越强(与玩家伤害加成形成取舍,有上限)
     const t = themeOf(run);
-    if (t && t.curseHp) hp = Math.floor(hp * (1 + Math.min(0.3, t.curseHp * (run.player.curse || 0))));
+    if (t && t.curseHp) hp = Math.floor(hp * (1 + Math.min(t.curseHpCap || 0.3, t.curseHp * (run.player.curse || 0))));
     // 主题:第一幕普通/精英敌人血量按主题校准,修正联动开局过软(BOSS 已对齐,不动)
     if (t && run.act === 1 && !d.boss && t.act1HpMult) hp = Math.floor(hp * t.act1HpMult);
     // 难度/进阶/每日:全局敌人生命倍率
@@ -287,7 +287,7 @@
   function curseDamageBonus(run) {
     const t = themeOf(run);
     if (!t || !t.curseDmg) return 0;
-    return Math.min(t.curseDmg * 6, (run.player.curse || 0) * t.curseDmg);
+    return Math.min(t.curseDmgCap || t.curseDmg * 6, (run.player.curse || 0) * t.curseDmg);
   }
   function relicSumDiscount(run, key) {
     let v = 0;
@@ -2462,6 +2462,7 @@
     restHealAmount(run) {
       return Math.floor(run.player.maxHp * 0.3) + relicVal(run, 'restHealBonus');
     },
+    curseDamageBonus,
     restHeal(run) {
       if (run.screen !== 'rest' || run.restDone) return;
       const amt = this.restHealAmount(run);

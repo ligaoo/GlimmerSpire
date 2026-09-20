@@ -268,15 +268,18 @@
           const dmgPer = theme.curseDmg || 0;
           const hpPer = Math.round((theme.curseHp || 0) * 100);
           const atkPer = Math.round((theme.curseAtk || 0) * 100);
-          const dmgB = Math.min(dmgPer * 6, cur * dmgPer);
-          const hpB = Math.min(30, Math.round((theme.curseHp || 0) * cur * 100));
-          const atkB = Math.min(24, Math.round((theme.curseAtk || 0) * cur * 100));
+          const dmgCap = theme.curseDmgCap || dmgPer * 6;
+          const hpCap = Math.round((theme.curseHpCap || 0.3) * 100);
+          const atkCap = Math.round((theme.curseAtkCap || 0.24) * 100);
+          const dmgB = Engine.curseDamageBonus(run);
+          const hpB = Math.min(hpCap, Math.round((theme.curseHp || 0) * cur * 100));
+          const atkB = Math.min(atkCap, Math.round((theme.curseAtk || 0) * cur * 100));
           const badge = el('span', 'curse-badge', `🩸 污染 ${cur}`);
           this.attachTip(badge,
             `<b>🩸 污染 ${cur} 层</b><br>` +
-            `你的卡牌伤害 <b style="color:#ff9a76">+${dmgB}</b>(每层 +${dmgPer},至多 +${dmgPer * 6})<br>` +
-            `敌人生命 <b style="color:#ff8fb0">+${hpB}%</b>(每层 +${hpPer}%,至多 +30%)<br>` +
-            `敌人攻击 <b style="color:#ff8fb0">+${atkB}%</b>(每层 +${atkPer}%,至多 +24%)<br>` +
+            `你的卡牌伤害 <b style="color:#ff9a76">+${dmgB}</b>(每层 +${dmgPer},至多 +${dmgCap})<br>` +
+            `敌人生命 <b style="color:#ff8fb0">+${hpB}%</b>(每层 +${hpPer}%,至多 +${hpCap}%)<br>` +
+            `敌人攻击 <b style="color:#ff8fb0">+${atkB}%</b>(每层 +${atkPer}%,至多 +${atkCap}%)<br>` +
             `<span style="color:#9aa3c7">每深入一层污染 +1;「🛡️ 镇魂结界」与进入新镜域可净化</span>`);
           title.appendChild(badge);
         }

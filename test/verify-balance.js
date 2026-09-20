@@ -24,10 +24,26 @@ const e = c.enemies[0];
 console.log(`\n[妖尾第一层] 敌人: ${e.name} HP ${e.hp}/${e.maxHp}  污染=${run.player.curse}  龙之意志=${c.player.statuses.dragonforce || 0}`);
 // ft_vulcan 基础 26-30 → ×1.08(污染1) → ×1.2(第一幕) = 33-38
 ok(e.hp >= 33 && e.hp <= 38, `第一层敌人血量 33-38(实际 ${e.hp})`);
-// 打击伤害:6 + 2(污染) = 8, ×1.3 = 10
+// 打击伤害:6 + 2(污染) = 8, ×1.3 = 10(妖尾保留每层 +2)
 const inst = { id: 'strike', up: 0, uid: -1 };
 const d = Engine.calcCardDamage(run, inst, null);
 ok(d === 10, `开局打击伤害 = 10(实际 ${d})`);
+
+/* 污染玩家加成:四主题已改为每层 +1、12 层触顶 +12(不再 6 层就失效);妖尾/奥特曼保留每层 +2 */
+{
+  const r = Engine.newThemeRun('journey', 424243);
+  r.player.curse = 1;
+  ok(Engine.curseDamageBonus(r) === 1, `西游记污染1层加成 +1(实际 ${Engine.curseDamageBonus(r)})`);
+  r.player.curse = 6;
+  ok(Engine.curseDamageBonus(r) === 6, `西游记污染6层加成 +6(实际 ${Engine.curseDamageBonus(r)})`);
+  r.player.curse = 12;
+  ok(Engine.curseDamageBonus(r) === 12, `西游记污染12层加成 +12(实际 ${Engine.curseDamageBonus(r)})`);
+  r.player.curse = 30;
+  ok(Engine.curseDamageBonus(r) === 12, `西游记污染30层仍封顶 +12(实际 ${Engine.curseDamageBonus(r)})`);
+  const r2 = Engine.newThemeRun('fairytail', 424243);
+  r2.player.curse = 6;
+  ok(Engine.curseDamageBonus(r2) === 12, `妖尾污染6层仍 +12(实际 ${Engine.curseDamageBonus(r2)})`);
+}
 
 /* 龙之意志 3 层封顶(不再被吞) */
 c.enemies[0].hp = 99999; c.enemies[0].maxHp = 99999;
